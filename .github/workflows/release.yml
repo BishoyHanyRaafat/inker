@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # Create a .env file on the runner from repo secrets.
+      # This file is NOT committed and NOT uploaded to the GitHub Release by default.
+      - name: Write .env from secrets (runner only)
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT: ${{ secrets.JWT }}
+          DEBUG: false
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          REDIRECT_DEFAULT_AFTER_PROVIDER: ${{ secrets.REDIRECT_DEFAULT_AFTER_PROVIDER }}
+          GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          rm -f .env
+          touch .env
+
+          add() {
+            local k="$1"
+            local v="$2"
+            if [[ -n "${v}" ]]; then
+              printf '%s=%s\n' "${k}" "${v}" >> .env
+            fi
+          }
+
+          add "DATABASE_URL" "${DATABASE_URL:-}"
+          add "JWT" "${JWT:-}"
+          add "DEBUG" "${DEBUG:-}"
+          add "FRONTEND_URL" "${FRONTEND_URL:-}"
+          add "BACKEND_URL" "${BACKEND_URL:-}"
+          add "REDIRECT_DEFAULT_AFTER_PROVIDER" "${REDIRECT_DEFAULT_AFTER_PROVIDER:-}"
+          add "GOOGLE_GEMINI_API_KEY" "${GOOGLE_GEMINI_API_KEY:-}"
+          add "GOOGLE_CLIENT_ID" "${GOOGLE_CLIENT_ID:-}"
+          add "GOOGLE_CLIENT_SECRET" "${GOOGLE_CLIENT_SECRET:-}"
+          add "GITHUB_CLIENT_ID" "${GITHUB_CLIENT_ID:-}"
+          add "GITHUB_CLIENT_SECRET" "${GITHUB_CLIENT_SECRET:-}"
+
+          echo "Wrote .env with $(wc -l < .env) entries"
+
+      - name: Test
+        run: cargo test --workspace --all-targets --all-features
+
+      - name: Build (release)
+        run: cargo build -p 'http@0.1.0' --release
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          bin="http"
+          out_dir="dist"
+          mkdir -p "${out_dir}"
+          tar -czf "${out_dir}/${bin}-${tag}-linux-x86_64.tar.gz" -C "target/release" "${bin}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz

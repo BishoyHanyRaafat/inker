@@ -1,0 +1,65 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/http",
+  "crates/migration",
+  "crates/entities",
+  "crates/ml-processing",
+  "crates/yt-processing",
+]
+
+[workspace.dependencies]
+axum = { version = "0.8", features = [
+  "tokio",
+  "json",
+  "tracing",
+  "ws",
+  "macros",
+] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "fmt",
+  "ansi",
+] }
+utoipa = { version = "5", features = ["uuid", "chrono"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+sea-orm = { version = "2.0.0-rc", features = [
+  "runtime-tokio-rustls",
+  "macros",
+  "sqlx-postgres",
+  "debug-print",
+  "mock",
+  "with-json",
+  "with-uuid",
+] }
+thiserror = "2.0.17"
+async-trait = "0.1"
+axum-extra = { version = "0.12.0", features = ["typed-header", "cookie"] }
+axum-macros = "0.5"
+regex = "1"
+user-agent-parser = "*"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+tokio-tungstenite = "0.27" ## For websocket support
+jsonwebtoken = "9.3"
+reqwest = { version = "0.12", features = ["json"] }
+argon2 = "0.5"
+oauth2 = "*"
+uuid = { version = "1", features = ["v4"] }
+password-hash = "0.5.0"
+http-body-util = "0.1"
+toon-format = "0.4"
+anyhow = "1.0"
+vtt = "1.0.0"
+gemini-rust = "1.5.1"
+
+# Entities crate
+entities = { path = "crates/entities" }
+ml-processing = { path = "crates/ml-processing" }
+yt-processing = { path = "crates/yt-processing" }

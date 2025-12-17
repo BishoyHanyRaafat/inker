@@ -1,0 +1,9 @@
+[package]
+name = "ml-processing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+toon-format.workspace = true
+serde.workspace = true
+gemini-rust.workspace = true

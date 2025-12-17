@@ -1,0 +1,52 @@
+[package]
+name = "http"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "http"
+path = "src/main.rs"
+
+[lib]
+name = "inker_http"
+path = "src/lib.rs"
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+utoipa.workspace = true
+utoipa-swagger-ui.workspace = true
+sea-orm.workspace = true
+thiserror.workspace = true
+axum-macros.workspace = true
+axum-extra.workspace = true
+regex.workspace = true
+user-agent-parser.workspace = true
+chrono.workspace = true
+entities.workspace = true
+dotenvy.workspace = true
+jsonwebtoken.workspace = true
+reqwest.workspace = true
+argon2.workspace = true
+oauth2.workspace = true
+uuid.workspace = true
+async-trait.workspace = true
+password-hash.workspace = true
+http-body-util.workspace = true
+ml-processing.workspace = true
+yt-processing.workspace = true
+toon-format.workspace = true
+gemini-rust.workspace = true
+
+tower_governor = "0.8"
+futures-util = "0.3"
+
+[dev-dependencies]
+axum-test = "18.4.1"
+serde_json.workspace = true
