@@ -126,6 +126,11 @@ export default function DashboardPage() {
                 ? "Create your first note to get started"
                 : `${notes.length} note${notes.length !== 1 ? "s" : ""} total`}
             </p>
+            <div className="mt-4">
+              <Button asChild variant="outline" className="backdrop-blur-sm">
+                <Link href="/interactive/yt">Focus Lecture (Live Questions)</Link>
+              </Button>
+            </div>
           </div>
 
           {/* Create Note & Search */}
