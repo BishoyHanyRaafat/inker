@@ -30,11 +30,15 @@ impl Captions {
             .join(" ")
     }
 
-    pub fn get_caption_at(&self, time: f64) -> Vec<&Caption> {
-        self.segments
-            .iter()
-            .filter(|c| c.start <= time && c.end >= time)
-            .collect()
+    pub fn query(&self, q_start: f64, q_end: f64) -> Captions {
+        let left = self.segments.partition_point(|c| c.end <= q_start);
+        let mut right = left;
+        while right < self.segments.len() && self.segments[right].start < q_end {
+            right += 1;
+        }
+        Captions {
+            segments: self.segments[left..right].to_vec(),
+        }
     }
 
     /// Convert to WebVTT format string
