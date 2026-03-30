@@ -45,18 +45,41 @@ async fn debug_logger(request: Request<Body>, next: Next) -> Response {
             .map(|b| b.to_bytes())
             .unwrap_or_default();
 
-        // Try to parse as JSON for pretty printing
-        let body_str = String::from_utf8_lossy(&bytes);
-        let formatted_body = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str)
-        {
-            serde_json::to_string_pretty(&json).unwrap_or_else(|_| body_str.to_string())
-        } else {
-            // Truncate non-JSON responses (like HTML) to avoid spam
-            if body_str.len() > 200 {
-                format!("{}... [truncated]", &body_str[..200])
+        let content_type = parts
+            .headers
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        // Only log bodies that are likely text; never try to print binary (e.g. PNG).
+        // Also avoid slicing strings by byte offsets (can panic on UTF-8 boundaries).
+        let formatted_body = if content_type.starts_with("application/json") {
+            let body_str = String::from_utf8_lossy(&bytes);
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                serde_json::to_string_pretty(&json).unwrap_or_else(|_| body_str.to_string())
             } else {
                 body_str.to_string()
             }
+        } else if content_type.starts_with("text/")
+            || content_type.starts_with("application/javascript")
+            || content_type.starts_with("application/xml")
+        {
+            let body_str = String::from_utf8_lossy(&bytes);
+            const MAX_CHARS: usize = 500;
+            let preview: String = body_str.chars().take(MAX_CHARS).collect();
+            if body_str.chars().count() > MAX_CHARS {
+                format!("{preview}... [truncated]")
+            } else {
+                preview
+            }
+        } else {
+            // Binary/unknown content: log only metadata.
+            let ct = if content_type.is_empty() {
+                "<unknown>"
+            } else {
+                content_type
+            };
+            format!("[body omitted: content-type={ct}, bytes={}]", bytes.len())
         };
 
         tracing::info!(target: "http::debug",
@@ -82,7 +105,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "http=info,http::debug=info".into()),
+                .unwrap_or_else(|_| "http=info,http::debug=info,ml_processing=info".into()),
         )
         .init();
     let yaml_content = fs::read_to_string("resources/user_agent_regexes.yaml")
@@ -99,7 +122,7 @@ async fn main() {
         Providers::default(),
         reqwest::Client::new(),
         ml_processing::GeminiClient::new(
-            env::var("GOOGLE_GEMINI_API_KEY").expect("GOOGLE_GEMINI_API_KEY must be set"),
+            env::var("GEMINI_KEY").expect("GOOGLE_GEMINI_API_KEY must be set"),
         )
         .expect("Failed to create Gemini client"),
         yt_processing::YouTubeCaptions::default(),
