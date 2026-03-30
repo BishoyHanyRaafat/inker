@@ -6,7 +6,6 @@ use axum::{
 
 pub mod models;
 pub mod notes_handler;
-// pub mod stream;
 
 pub fn router(app_state: AppState) -> Router {
     Router::new()
