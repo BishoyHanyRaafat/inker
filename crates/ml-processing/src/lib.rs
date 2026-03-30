@@ -1,7 +1,6 @@
 mod models;
 
 pub use models::*;
-use toon_format::decode_default;
 
 #[derive(Clone)]
 pub struct GeminiClient {
@@ -11,6 +10,7 @@ pub struct GeminiClient {
 pub enum Error {
     GeminiError(gemini_rust::ClientError),
     DecodeError(toon_format::ToonError),
+    JsonDecodeError(serde_json::Error),
 }
 
 impl GeminiClient {
@@ -20,7 +20,7 @@ impl GeminiClient {
         })
     }
     pub async fn process_chunk(&self, chunk: Chunk) -> Result<ProcessedChunk, Error> {
-        let prompt = create_prompt(chunk);
+        let prompt = create_prompt_processed_chunk(chunk);
         let resp = self
             .client
             .generate_content()
@@ -28,7 +28,15 @@ impl GeminiClient {
             .execute()
             .await
             .map_err(Error::GeminiError)?;
+        let text = resp.text();
+        tracing::info!("Gemini response: {}", text);
 
-        decode_default(resp.text().to_string().as_str()).map_err(Error::DecodeError)
+        let text = text.strip_prefix("```json").unwrap_or(&text);
+        let text = text.strip_suffix("```").unwrap_or(text);
+
+        // Toon not working properly, using JSON for now
+        // LLMS currently don't know much about toon format
+        // decode_default(text).map_err(Error::DecodeError)
+        serde_json::from_str::<ProcessedChunk>(text).map_err(Error::JsonDecodeError)
     }
 }

@@ -7,3 +7,6 @@ edition = "2024"
 toon-format.workspace = true
 serde.workspace = true
 gemini-rust.workspace = true
+utoipa.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
