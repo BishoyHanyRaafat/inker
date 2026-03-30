@@ -11,6 +11,7 @@ use axum::{
 };
 use axum_extra::{
     TypedHeader,
+    extract::CookieJar,
     headers::{Authorization, authorization::Bearer},
 };
 use jsonwebtoken::{Validation, decode};
@@ -115,10 +116,49 @@ where
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
             .map_err(|e| AuthError::InvalidToken.get_response().with_debug(e))?;
-        // Decode the user data
-        let token_data = decode::<Claims>(bearer.token(), &KEYS.decoding, &Validation::default())
-            .map_err(|e| AuthError::InvalidToken.get_response().with_debug(e))?;
+        decode_claims_from_token(bearer.token())
+    }
+}
 
-        Ok(token_data.claims)
+fn decode_claims_from_token(token: &str) -> Result<Claims, AppError> {
+    let token_data = decode::<Claims>(token, &KEYS.decoding, &Validation::default())
+        .map_err(|e| AuthError::InvalidToken.get_response().with_debug(e))?;
+    Ok(token_data.claims)
+}
+
+/// WebSocket-friendly claims extractor.
+///
+/// Browsers cannot attach custom `Authorization` headers when creating a `WebSocket`,
+/// so we accept the access token via:
+/// - `Authorization: Bearer <token>` (non-browser clients)
+/// - HttpOnly cookie `access_token` (browser clients)
+///
+/// NOTE: This extractor is only meant for WebSocket endpoints.
+pub struct WsClaims(pub Claims);
+
+impl<S> FromRequestParts<S> for WsClaims
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let header_token = parts
+            .extract::<TypedHeader<Authorization<Bearer>>>()
+            .await
+            .ok()
+            .map(|TypedHeader(Authorization(bearer))| bearer.token().to_string());
+
+        let cookie_token = parts
+            .extract::<CookieJar>()
+            .await
+            .ok()
+            .and_then(|jar| jar.get("access_token").map(|c| c.value().to_string()));
+
+        let token = header_token
+            .or(cookie_token)
+            .ok_or_else(|| AuthError::InvalidToken.get_response())?;
+
+        Ok(WsClaims(decode_claims_from_token(&token)?))
     }
 }

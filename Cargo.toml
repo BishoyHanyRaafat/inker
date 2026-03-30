@@ -58,6 +58,7 @@ toon-format = "0.4"
 anyhow = "1.0"
 vtt = "1.0.0"
 gemini-rust = "1.5.1"
+time = "0.3"
 
 # Entities crate
 entities = { path = "crates/entities" }

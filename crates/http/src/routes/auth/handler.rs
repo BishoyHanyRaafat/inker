@@ -8,6 +8,9 @@ use crate::routes::extractors::DeviceExtractor;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::Utc;
 use entities::{password, prelude::*};
 use entities::{refresh_tokens, user};
@@ -16,7 +19,28 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, ExprTrait, QueryFilter, Set,
     TransactionTrait,
 };
+use time::Duration as CookieDuration;
 use uuid::Uuid;
+
+use crate::config::DEBUG;
+
+fn with_access_token_cookie(jar: CookieJar, token: &str, expires_at: i64) -> CookieJar {
+    // NOTE: `secure(true)` requires HTTPS. In local dev we run on plain HTTP.
+    let secure = !*DEBUG;
+    let max_age_secs = std::cmp::max(expires_at - Utc::now().timestamp(), 0);
+
+    let mut cookie = Cookie::build(("access_token", token.to_string()))
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .secure(secure);
+
+    if max_age_secs > 0 {
+        cookie = cookie.max_age(CookieDuration::seconds(max_age_secs));
+    }
+
+    jar.add(cookie)
+}
 /// Login endpoint
 ///
 /// Authenticates a user with email and password, returning access and refresh tokens.
@@ -35,13 +59,14 @@ use uuid::Uuid;
 pub async fn login(
     State(state): State<AppState>,
     user_device_info: DeviceExtractor,
+    jar: CookieJar,
     Json(payload): Json<LoginUser>,
-) -> Result<ApiResponse<Auth>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     if payload.password.is_empty() || payload.email.is_empty() {
         return Err(AuthError::MissingCredentials.get_response());
     }
 
-    let user_email = payload.email.clone();
+    let user_email = payload.email.to_lowercase().clone();
     let (user, pass): (user::Model, Option<password::Model>) = User::find()
         .filter(user::Column::Email.eq(user_email))
         .find_also_related(password::Entity)
@@ -55,10 +80,14 @@ pub async fn login(
     let (access_token, ref_token) = user.generate_tokens(user_device_info)?;
     ref_token.insert_refresh_token(&state).await?;
 
-    Ok(ApiResponse::success_response(
-        StatusCode::OK,
-        "Logged in successfully",
-        access_token,
+    let jar = with_access_token_cookie(
+        jar,
+        &access_token.access_token.token,
+        access_token.access_token.expires_at,
+    );
+    Ok((
+        jar,
+        ApiResponse::success_response(StatusCode::OK, "Logged in successfully", access_token),
     ))
 }
 
@@ -79,9 +108,10 @@ pub async fn login(
 pub async fn signup(
     State(state): State<AppState>,
     user_device_info: DeviceExtractor,
+    jar: CookieJar,
     Json(payload): Json<SeededUser>,
-) -> Result<ApiResponse<Auth>, AppError> {
-    let email_to_check = payload.email.clone();
+) -> Result<impl IntoResponse, AppError> {
+    let email_to_check = payload.email.to_lowercase().clone();
     let username_to_check = payload.username.clone();
 
     let existing_user = User::find()
@@ -94,7 +124,7 @@ pub async fn signup(
         .await?;
 
     if let Some(usr) = existing_user {
-        return if usr.email == payload.email {
+        return if usr.email == payload.email.to_lowercase() {
             Err(AuthError::EmailAlreadyExists.get_response())
         } else {
             Err(AuthError::UsernameAlreadyExists.get_response())
@@ -106,7 +136,7 @@ pub async fn signup(
     let hashed = password::Model::hash(&payload.password)?;
     let user_am = user::ActiveModel {
         username: Set(payload.username),
-        email: Set(payload.email),
+        email: Set(payload.email.to_lowercase()),
         ..Default::default()
     };
 
@@ -129,10 +159,14 @@ pub async fn signup(
     let (access_token, ref_token) = inserted_user.generate_tokens(user_device_info)?;
     ref_token.insert_refresh_token(&state).await?;
 
-    Ok(ApiResponse::success_response(
-        StatusCode::OK,
-        "User created successfully",
-        access_token,
+    let jar = with_access_token_cookie(
+        jar,
+        &access_token.access_token.token,
+        access_token.access_token.expires_at,
+    );
+    Ok((
+        jar,
+        ApiResponse::success_response(StatusCode::OK, "User created successfully", access_token),
     ))
 }
 
@@ -154,8 +188,9 @@ pub async fn signup(
 pub async fn refreshtoken(
     State(state): State<AppState>,
     user_device_info: DeviceExtractor,
+    jar: CookieJar,
     Json(refresh_token_str): Json<String>,
-) -> Result<ApiResponse<Auth>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     let old_token_uuid = Uuid::parse_str(&refresh_token_str)
         .map_err(|e| AuthError::InvalidToken.get_response().with_debug(e))?;
 
@@ -206,9 +241,13 @@ pub async fn refreshtoken(
     // Commit the transaction
     txn.commit().await?;
 
-    Ok(ApiResponse::success_response(
-        StatusCode::OK,
-        "Refresh token updated",
-        new_auth_token,
+    let jar = with_access_token_cookie(
+        jar,
+        &new_auth_token.access_token.token,
+        new_auth_token.access_token.expires_at,
+    );
+    Ok((
+        jar,
+        ApiResponse::success_response(StatusCode::OK, "Refresh token updated", new_auth_token),
     ))
 }

@@ -43,6 +43,7 @@ ml-processing.workspace = true
 yt-processing.workspace = true
 toon-format.workspace = true
 gemini-rust.workspace = true
+time.workspace = true
 
 tower_governor = "0.8"
 futures-util = "0.3"

@@ -49,6 +49,9 @@ export const createClientConfig: CreateClientConfig = (config) => ({
   // Custom fetch wrapper to add auth token
   fetch: (input, init) => {
     const token = getAccessToken();
+    // Important for cookie-based auth across different frontend/backend origins:
+    // make sure the browser will accept Set-Cookie and send cookies on requests.
+    const credentials: RequestCredentials = "include";
     
     // Check if input is a Request object (headers would be embedded there)
     if (input instanceof Request) {
@@ -56,9 +59,10 @@ export const createClientConfig: CreateClientConfig = (config) => ({
       if (token) {
         const newHeaders = new Headers(input.headers);
         newHeaders.set("Authorization", `Bearer ${token}`);
-        return fetch(new Request(input, { headers: newHeaders }));
+        return fetch(new Request(input, { headers: newHeaders, credentials }));
       }
-      return fetch(input);
+      // Ensure cookies are included even without auth header
+      return fetch(new Request(input, { credentials }));
     }
     
     // input is a string URL, headers are in init
@@ -87,6 +91,7 @@ export const createClientConfig: CreateClientConfig = (config) => ({
     return fetch(input, {
       ...init,
       headers,
+      credentials,
     });
   },
 });
