@@ -51,6 +51,7 @@ impl From<CommonError> for YoutubeError {
         match err {
             CommonError::GeminiError(e) => YoutubeError::GeminiError(e),
             CommonError::DecodeError(e) => YoutubeError::ToonDecodeError(e),
+            CommonError::JsonDecodeError(e) => YoutubeError::JsonDecodeError(e),
         }
     }
 }

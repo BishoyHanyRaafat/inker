@@ -11,6 +11,7 @@ use std::borrow::Cow;
 pub use auth_errors::AuthError;
 pub use base_errors::BaseError;
 pub use notes_errors::NotesError;
+pub use youtube_errors::YoutubeError;
 
 pub trait AppErrorTrait {
     fn status_code(&self) -> StatusCode;

@@ -5,6 +5,9 @@ use crate::routes::auth::models::{
     Auth, LoginUser, ProviderPath, ProviderQuery, SeededUser, Token,
 };
 use crate::routes::auth::provider;
+use crate::routes::interactive::{
+    events::YouTubeStreamEventUpdate, events::YouTubeStreamResponse, yt_websocket,
+};
 use crate::routes::notes::models::{
     Block, DividerBlock, ImageBlock, NoteBlock, SeededBlock, SeededNote, TableBlock, TableCell,
     TextBlock, TextMark, TextSegment, TodoBlock,
@@ -26,6 +29,7 @@ use utoipa::OpenApi;
         notes_handler::get_block_by_id,
         notes_handler::create_note,
         notes_handler::create_block,
+        yt_websocket::ws_handler,
     ),
     components(schemas(
         ApiResponse<Auth>,
@@ -54,10 +58,14 @@ use utoipa::OpenApi;
         DividerBlock,
         SeededBlock,
         SeededNote,
+        YouTubeStreamResponse,
+        YouTubeStreamEventUpdate
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),
-        (name = "notes", description = "Notes and blocks management endpoints")
+        (name = "notes", description = "Notes and blocks management endpoints"),
+        (name = "interactive", description = "Interactive streaming endpoints"),
+        (name = "ws", description = "WebSocket endpoints"),
     ),
     info(
         title = "Inker API",
