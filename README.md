@@ -10,6 +10,8 @@ Rust (Axum) backend + Next.js frontend for notes and interactive streaming (YouT
 - **Node.js + npm** (for `frontend/`)
 - **Postgres**
 
+![Demo](/Users/bishoy/Documents/rust/inker/media/demo.png)
+
 ### 1) Start Postgres + run migrations
 
 Set your DB URL (default in `inker.sh`):
@@ -101,3 +103,8 @@ If you modify the DB schema and want to regenerate `crates/entities`:
 ./inker.sh generate
 ```
 
+## Work in progress
+
+- convert the interactive learning to notes
+- improve the markdown editor layout
+- add support for another way of interactive learning (eg. pdf, book)
