@@ -5,7 +5,7 @@ set -euo pipefail
 export DATABASE_URL="postgres://postgres@localhost:5432/postgres"
 
 COMMAND=${1:-""}
-shift || true  # Remove first arg, ignore error if no args
+shift || true # Remove first arg, ignore error if no args
 
 case "$COMMAND" in
 run)

@@ -19,6 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install yt-dlp
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip
+          pip3 install -U yt-dlp
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -35,5 +41,3 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --all-targets --all-features
-
-
