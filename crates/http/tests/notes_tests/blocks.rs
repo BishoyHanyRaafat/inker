@@ -8,51 +8,54 @@ use serde_json::json;
 use uuid::Uuid;
 
 #[tokio::test]
-async fn test_get_blocks_by_note_id_requires_auth() {
+async fn test_get_contents_by_note_id_requires_auth() {
     let server = create_default_test_server();
     let note_id = Uuid::new_v4();
-    let response = server.get(&format!("/api/v1/notes/{note_id}/block")).await;
+    let response = server
+        .get(&format!("/api/v1/notes/{note_id}/content"))
+        .await;
 
     assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
-async fn test_get_blocks_by_note_id_returns_blocks() {
+async fn test_get_contents_by_note_id_returns_blocks() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
     let note_id = Uuid::new_v4();
 
-    let b1 = fake_data::block::model_text(Uuid::new_v4(), note_id, 1.0, 1, "hello");
-    let b2 = fake_data::block::model_text(Uuid::new_v4(), note_id, 2.0, 1, "hello");
+    let b1 = fake_data::note_content::model_text(Uuid::new_v4(), note_id, 1, "hello".to_string());
 
     let db = MockDbBuilder::new()
-        .with_query_results::<entities::block::Model>(vec![vec![b1.clone(), b2.clone()]])
+        .with_query_results::<entities::note_content::Model>(vec![vec![b1.clone()]])
         .build();
     let server = create_test_server_with_db(db);
 
     let response = server
-        .get(&format!("/api/v1/notes/{note_id}/block"))
+        .get(&format!("/api/v1/notes/{note_id}/content"))
         .authorization_bearer(token)
         .await;
 
     let body = assert_status_json(response, StatusCode::OK);
-    assert_eq!(body["success"], true);
-    assert_eq!(body["data"].as_array().unwrap().len(), 2);
+
+    assert_eq!(body["data"].get("content").unwrap(), "hello");
 }
 
 #[tokio::test]
-async fn test_get_block_by_id_returns_404_when_not_found() {
+async fn test_get_content_by_id_returns_404_when_not_found() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
-    let block_id = Uuid::new_v4();
+    let content_id = Uuid::new_v4();
 
     let db = MockDbBuilder::new()
-        .with_tuple_query_results::<entities::block::Model, entities::note::Model>(vec![vec![]])
+        .with_tuple_query_results::<entities::note_content::Model, entities::note::Model>(vec![
+            vec![],
+        ])
         .build();
     let server = create_test_server_with_db(db);
 
     let response = server
-        .get(&format!("/api/v1/notes/block/{block_id}"))
+        .get(&format!("/api/v1/notes/content/{content_id}"))
         .authorization_bearer(token)
         .await;
 
@@ -60,50 +63,49 @@ async fn test_get_block_by_id_returns_404_when_not_found() {
 }
 
 #[tokio::test]
-async fn test_get_block_by_id_returns_200_for_owned_note() {
+async fn test_get_content_by_id_returns_200_for_owned_note() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
 
     let note = fake_data::note::model(Uuid::new_v4(), user_id, "n");
-    let block = fake_data::block::model_text(Uuid::new_v4(), note.id, 1.0, 1, "hello");
+    let content =
+        fake_data::note_content::model_text(Uuid::new_v4(), note.id, 1, "hello".to_string());
 
     let db = MockDbBuilder::new()
-        .with_tuple_query_results::<entities::block::Model, entities::note::Model>(vec![vec![(
-            block.clone(),
-            Some(note.clone()),
-        )]])
+        .with_tuple_query_results::<entities::note_content::Model, entities::note::Model>(vec![
+            vec![(content.clone(), Some(note.clone()))],
+        ])
         .build();
     let server = create_test_server_with_db(db);
 
     let response = server
-        .get(&format!("/api/v1/notes/block/{}", block.id))
+        .get(&format!("/api/v1/notes/content/{}", note.id))
         .authorization_bearer(token)
         .await;
 
     let body = assert_status_json(response, StatusCode::OK);
-    assert_eq!(body["success"], true);
     assert_eq!(body["data"]["note_id"], note.id.to_string());
 }
 
 #[tokio::test]
-async fn test_get_block_by_id_returns_404_when_note_not_owned() {
+async fn test_get_content_by_id_returns_404_when_note_not_owned() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
 
     let other_user_id = Uuid::new_v4();
     let note = fake_data::note::model(Uuid::new_v4(), other_user_id, "n");
-    let block = fake_data::block::model_text(Uuid::new_v4(), note.id, 1.0, 1, "hello");
+    let content =
+        fake_data::note_content::model_text(Uuid::new_v4(), note.id, 1, "hello".to_string());
 
     let db = MockDbBuilder::new()
-        .with_tuple_query_results::<entities::block::Model, entities::note::Model>(vec![vec![(
-            block.clone(),
-            Some(note.clone()),
-        )]])
+        .with_tuple_query_results::<entities::note_content::Model, entities::note::Model>(vec![
+            vec![(content.clone(), Some(note.clone()))],
+        ])
         .build();
     let server = create_test_server_with_db(db);
 
     let response = server
-        .get(&format!("/api/v1/notes/block/{}", block.id))
+        .get(&format!("/api/v1/notes/content/{}", note.id))
         .authorization_bearer(token)
         .await;
 
@@ -111,7 +113,7 @@ async fn test_get_block_by_id_returns_404_when_note_not_owned() {
 }
 
 #[tokio::test]
-async fn test_create_block_returns_404_when_note_not_found() {
+async fn test_create_content_returns_404_when_note_not_found() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
     let note_id = Uuid::new_v4();
@@ -122,18 +124,12 @@ async fn test_create_block_returns_404_when_note_not_found() {
     let server = create_test_server_with_db(db);
 
     let response = server
-        .post("/api/v1/notes/block")
+        .post("/api/v1/notes/content")
         .authorization_bearer(token)
         .json(&json!({
             "note_id": note_id,
-            "order": 1.0,
             "version": 1,
-            "content": {
-                "type": "text",
-                "data": {
-                    "segments": [{ "text": "hello", "marks": [] }]
-                }
-            }
+            "content": "new markdown"
         }))
         .await;
 
@@ -141,18 +137,19 @@ async fn test_create_block_returns_404_when_note_not_found() {
 }
 
 #[tokio::test]
-async fn test_create_block_success_returns_201() {
+async fn test_create_content_success_returns_201() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
 
     let note = fake_data::note::model(Uuid::new_v4(), user_id, "n");
-    let inserted_block = fake_data::block::model_text(Uuid::new_v4(), note.id, 1.0, 1, "hello");
+    let inserted_content =
+        fake_data::note_content::model_text(Uuid::new_v4(), note.id, 1, "hello".to_string());
 
     let db = MockDbBuilder::new()
         // note lookup (ownership check)
         .with_query_results::<entities::note::Model>(vec![vec![note.clone()]])
-        // inserted block (RETURNING ...)
-        .with_query_results::<entities::block::Model>(vec![vec![inserted_block.clone()]])
+        // inserted content (RETURNING ...)
+        .with_query_results::<entities::note_content::Model>(vec![vec![inserted_content.clone()]])
         .with_exec_results(vec![sea_orm::MockExecResult {
             last_insert_id: 1,
             rows_affected: 1,
@@ -161,22 +158,15 @@ async fn test_create_block_success_returns_201() {
     let server = create_test_server_with_db(db);
 
     let response = server
-        .post("/api/v1/notes/block")
+        .post("/api/v1/notes/content")
         .authorization_bearer(token)
         .json(&json!({
             "note_id": note.id,
-            "order": inserted_block.order,
-            "version": inserted_block.version,
-            "content": {
-                "type": "text",
-                "data": {
-                    "segments": [{ "text": "hello", "marks": [] }]
-                }
-            }
+            "version": inserted_content.version,
+            "content": "content"
         }))
         .await;
 
     let body = assert_status_json(response, StatusCode::CREATED);
-    assert_eq!(body["success"], true);
     assert_eq!(body["data"]["note_id"], note.id.to_string());
 }

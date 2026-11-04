@@ -5,9 +5,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum NotesError {
-    #[error("Note is malformed")]
-    NoteMalFormed,
-
     #[error("Title is required")]
     TitleRequired,
 
@@ -15,16 +12,19 @@ pub enum NotesError {
     TitleTooLong(usize),
 
     #[error("Block content too large (max {0} bytes)")]
-    BlockContentTooLarge(usize),
+    NoteContentTooLarge(usize),
+
+    #[error("Invalid version")]
+    InvalidVersion(i32),
 }
 
 impl AppErrorTrait for NotesError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::NoteMalFormed => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::TitleRequired | Self::TitleTooLong(_) | Self::BlockContentTooLarge(_) => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::TitleRequired
+            | Self::TitleTooLong(_)
+            | Self::NoteContentTooLarge(_)
+            | Self::InvalidVersion(_) => StatusCode::BAD_REQUEST,
         }
     }
 

@@ -130,30 +130,20 @@ pub mod note {
     }
 }
 
-pub mod block {
+pub mod note_content {
     use super::*;
-    use serde_json::json;
 
     pub fn model_text(
         id: Uuid,
         note_id: Uuid,
-        order: f32,
         version: i32,
-        text: &str,
-    ) -> entities::block::Model {
-        entities::block::Model {
+        text: String,
+    ) -> entities::note_content::Model {
+        entities::note_content::Model {
             id,
             note_id,
-            order,
             version,
-            content: json!({
-                "type": "text",
-                "data": {
-                    "segments": [
-                        { "text": text, "marks": [] }
-                    ]
-                }
-            }),
+            content: text,
         }
     }
 }

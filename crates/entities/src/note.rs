@@ -19,7 +19,7 @@ pub struct Model {
     pub pinned: bool,
     #[sea_orm(has_many)]
     #[serde(skip)]
-    pub blocks: HasMany<super::block::Entity>,
+    pub note_contents: HasMany<super::note_content::Entity>,
     #[sea_orm(
         belongs_to,
         from = "user_id",

@@ -9,7 +9,6 @@ pub struct GeminiClient {
 
 pub enum Error {
     GeminiError(gemini_rust::ClientError),
-    DecodeError(toon_format::ToonError),
     JsonDecodeError(serde_json::Error),
 }
 
@@ -34,9 +33,6 @@ impl GeminiClient {
         let text = text.strip_prefix("```json").unwrap_or(&text);
         let text = text.strip_suffix("```").unwrap_or(text);
 
-        // Toon not working properly, using JSON for now
-        // LLMS currently don't know much about toon format
-        // decode_default(text).map_err(Error::DecodeError)
         serde_json::from_str::<ProcessedChunk>(text).map_err(Error::JsonDecodeError)
     }
 }

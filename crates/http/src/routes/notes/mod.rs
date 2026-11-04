@@ -1,7 +1,7 @@
 use crate::AppState;
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, patch, post},
 };
 
 pub mod models;
@@ -13,10 +13,14 @@ pub fn router(app_state: AppState) -> Router {
         .route("/", post(notes_handler::create_note))
         .route("/{note_id}", get(notes_handler::get_note_by_id))
         .route(
-            "/{note_id}/block",
-            get(notes_handler::get_blocks_by_note_id),
+            "/{note_id}/content",
+            get(notes_handler::get_note_content_by_note_id),
         )
-        .route("/block/{block_id}", get(notes_handler::get_block_by_id))
-        .route("/block", post(notes_handler::create_block))
+        .route(
+            "/content/{content_id}",
+            get(notes_handler::get_note_content_by_id),
+        )
+        .route("/content", post(notes_handler::create_note_content))
+        .route("/content", patch(notes_handler::patch_note_content))
         .with_state(app_state)
 }

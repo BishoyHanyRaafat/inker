@@ -8,26 +8,7 @@ pub struct Migration;
 /// table)
 ///
 /// Block
-/// Each block has id, version, content, order(float), note_id (foreign key to notes table)
-/// content is a jsonb value that can store different types of blocks (text, image, todo, etc.)
-///
-///
-/// Jsonb content structure:
-/// ID: block_type_UUID
-/// data can be one of the following:
-/// TextBlock
-///     List of segments field
-///     each segment has text and marks
-///     marks is a list of: bold, italic, underline, strike through, code, link,
-///     highlight, mention (If the segment is mention the text will be the user_id), color(starts with # for hex color)
-/// ImageBlock
-///     Just an url to the image
-/// TODOBlock
-///     List of text
-/// TableBlock
-///      List of ordered Blocks
-/// DividerBlock
-///     Nothing we don't need any field for divider
+/// Each block has id, version, content, note_id (foreign key to notes table)
 ///
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -88,22 +69,21 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(Block::Table)
+                    .table(NoteContent::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(Block::Id)
+                        ColumnDef::new(NoteContent::Id)
                             .uuid()
                             .not_null()
                             .default(Expr::cust("gen_random_uuid()"))
                             .primary_key(),
                     )
-                    .col(integer(Block::Version).not_null().default(1))
-                    .col(json_binary(Block::Content).not_null())
-                    .col(float(Block::Order).not_null())
-                    .col(uuid(Block::NoteId).not_null())
+                    .col(integer(NoteContent::Version).not_null().default(1))
+                    .col(text(NoteContent::Content).not_null())
+                    .col(uuid(NoteContent::NoteId).not_null())
                     .foreign_key(
                         ForeignKey::create()
-                            .from(Block::Table, Block::NoteId)
+                            .from(NoteContent::Table, NoteContent::NoteId)
                             .to(Note::Table, Note::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
@@ -115,7 +95,7 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Replace the sample below with your own migration scripts
         manager
-            .drop_table(Table::drop().table(Block::Table).to_owned())
+            .drop_table(Table::drop().table(NoteContent::Table).to_owned())
             .await?;
 
         manager
@@ -138,11 +118,10 @@ enum Note {
 }
 
 #[derive(DeriveIden)]
-enum Block {
+enum NoteContent {
     Table,
     Id,
     Version,
     Content,
-    Order,
     NoteId,
 }

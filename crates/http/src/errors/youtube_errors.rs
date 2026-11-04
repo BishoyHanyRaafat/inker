@@ -14,9 +14,6 @@ pub enum YoutubeError {
     GeminiError(#[from] gemini_rust::ClientError),
 
     #[error("Decode error: {0}")]
-    ToonDecodeError(#[from] toon_format::ToonError),
-
-    #[error("Decode error: {0}")]
     JsonDecodeError(#[from] serde_json::Error),
 }
 
@@ -28,9 +25,6 @@ impl YoutubeError {
             YoutubeError::GeminiError(e) => Cow::from(e.to_string()),
             YoutubeError::JsonDecodeError(e) => {
                 Cow::from(format!("Failed to decode response: {}", e))
-            }
-            YoutubeError::ToonDecodeError(e) => {
-                Cow::from(format!("Failed to decode format: {}", e))
             }
         }
     }
@@ -50,7 +44,6 @@ impl From<CommonError> for YoutubeError {
     fn from(err: CommonError) -> Self {
         match err {
             CommonError::GeminiError(e) => YoutubeError::GeminiError(e),
-            CommonError::DecodeError(e) => YoutubeError::ToonDecodeError(e),
             CommonError::JsonDecodeError(e) => YoutubeError::JsonDecodeError(e),
         }
     }

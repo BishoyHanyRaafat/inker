@@ -8,10 +8,7 @@ use crate::routes::auth::provider;
 use crate::routes::interactive::{
     events::YouTubeStreamEventUpdate, events::YouTubeStreamResponse, yt_websocket,
 };
-use crate::routes::notes::models::{
-    Block, DividerBlock, ImageBlock, NoteBlock, SeededBlock, SeededNote, TableBlock, TableCell,
-    TextBlock, TextMark, TextSegment, TodoBlock,
-};
+use crate::routes::notes::models::{PatchNoteContent, SeededNote, SeededNoteContent};
 use crate::routes::notes::notes_handler;
 use entities::sea_orm_active_enums::OauthProvider;
 use utoipa::OpenApi;
@@ -25,10 +22,11 @@ use utoipa::OpenApi;
         provider::provider_handler,
         notes_handler::get_notes,
         notes_handler::get_note_by_id,
-        notes_handler::get_blocks_by_note_id,
-        notes_handler::get_block_by_id,
+        notes_handler::get_note_content_by_note_id,
+        notes_handler::get_note_content_by_id,
         notes_handler::create_note,
-        notes_handler::create_block,
+        notes_handler::create_note_content,
+        notes_handler::patch_note_content,
         yt_websocket::ws_handler,
     ),
     components(schemas(
@@ -36,8 +34,7 @@ use utoipa::OpenApi;
         ApiResponse<String>,
         ApiResponse<Vec<entities::note::Model>>,
         ApiResponse<entities::note::Model>,
-        ApiResponse<Vec<NoteBlock>>,
-        ApiResponse<NoteBlock>,
+        ApiResponse<entities::note_content::Model>,
         Auth,
         Token,
         SeededUser,
@@ -46,18 +43,9 @@ use utoipa::OpenApi;
         ProviderQuery,
         OauthProvider,
         entities::note::Model,
-        NoteBlock,
-        Block,
-        TextBlock,
-        TextSegment,
-        TextMark,
-        ImageBlock,
-        TodoBlock,
-        TableBlock,
-        TableCell,
-        DividerBlock,
-        SeededBlock,
         SeededNote,
+        SeededNoteContent,
+        PatchNoteContent,
         YouTubeStreamResponse,
         YouTubeStreamEventUpdate
     )),

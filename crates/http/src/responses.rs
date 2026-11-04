@@ -12,8 +12,6 @@ fn skip_in_production(opt: &Option<String>) -> bool {
 #[derive(Serialize, ToSchema, Debug)]
 #[schema(as = Response, description = "Standard API Response")]
 pub struct ApiResponse<T> {
-    #[schema(example = true)]
-    success: bool,
     #[schema(example = "Operation completed successfully")]
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -33,7 +31,6 @@ pub struct ApiResponse<T> {
 impl<T> ApiResponse<T> {
     pub fn error_response(status: axum::http::StatusCode, message: String) -> Self {
         ApiResponse {
-            success: false,
             message,
             data: None,
             debug: None,
@@ -53,7 +50,6 @@ impl<T> ApiResponse<T> {
 
     pub fn success_response(status: axum::http::StatusCode, message: &str, data: T) -> Self {
         ApiResponse {
-            success: true,
             message: message.to_string(),
             data: Some(data),
             debug: None,
@@ -77,14 +73,12 @@ impl<T> ApiResponse<T> {
 
 impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> axum::response::Response {
-        if self.success {
-            if let Some(ref data) = self.data {
-                trace!(
-                    "  Response data: {:?}",
-                    serde_json::to_string(data)
-                        .unwrap_or_else(|_| "Unable to serialize data".to_string())
-                );
-            }
+        if let Some(ref data) = self.data {
+            trace!(
+                "  Response data: {:?}",
+                serde_json::to_string(data)
+                    .unwrap_or_else(|_| "Unable to serialize data".to_string())
+            );
         } else if !self.errors.is_empty() {
             trace!("  Error details: {:?}", self.errors);
         }

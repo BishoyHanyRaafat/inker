@@ -4,17 +4,17 @@ use crate::{
     responses::ApiResponse,
     routes::{
         auth::models::Claims,
-        notes::models::{NoteBlock, SeededBlock, SeededNote},
+        notes::models::{PatchNoteContent, SeededNote, SeededNoteContent},
     },
 };
 use axum::Json;
 use axum::extract::{Path, State};
-use sea_orm::{ActiveValue::Set, QuerySelect, QueryTrait, prelude::*};
+use sea_orm::{ActiveValue::NotSet, ActiveValue::Set, QuerySelect, QueryTrait, prelude::*};
 use uuid::Uuid;
 
 // Validation constants
 const MAX_TITLE_LENGTH: usize = 500;
-const MAX_BLOCK_CONTENT_BYTES: usize = 1024 * 1024; // 1 MB max for block content
+const MAX_NOTE_CONTENT_BYTES: usize = 1024 * 1024 * 20; // 20 MB max for note content
 
 /// Validate note input
 fn validate_note(note: &SeededNote) -> Result<(), AppError> {
@@ -31,14 +31,15 @@ fn validate_note(note: &SeededNote) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Validate block input
-fn validate_block(block: &SeededBlock) -> Result<(), AppError> {
-    // Check content size by serializing to JSON
-    let content_json = serde_json::to_string(&block.content)
-        .map_err(|e| BaseError::InternalServer.get_response().with_debug(e))?;
+/// Validate content input
+fn validate_content(content: &str, version: Option<i32>) -> Result<(), AppError> {
+    let version = version.unwrap_or(1);
+    if version != 1 {
+        return Err(NotesError::InvalidVersion(version).get_response());
+    }
 
-    if content_json.len() > MAX_BLOCK_CONTENT_BYTES {
-        return Err(NotesError::BlockContentTooLarge(MAX_BLOCK_CONTENT_BYTES).get_response());
+    if content.len() > MAX_NOTE_CONTENT_BYTES {
+        return Err(NotesError::NoteContentTooLarge(MAX_NOTE_CONTENT_BYTES).get_response());
     }
 
     Ok(())
@@ -119,12 +120,12 @@ pub async fn get_note_by_id(
     ))
 }
 
-/// Get blocks by note ID
+/// Get Content by note ID
 ///
-/// Retrieves all blocks for a specific note that belongs to the authenticated user.
+/// Retrieves the note content for a specific note that belongs to the authenticated user.
 #[utoipa::path(
     get,
-    path = "/api/v1/notes/{note_id}/block",
+    path = "/api/v1/notes/{note_id}/content",
     tag = "notes",
     security(
         ("bearer" = [])
@@ -133,26 +134,26 @@ pub async fn get_note_by_id(
         ("note_id" = Uuid, Path, description = "Note ID")
     ),
     responses(
-        (status = 200, description = "Blocks retrieved successfully", body = ApiResponse<Vec<NoteBlock>>),
+        (status = 200, description = "Content retrieved successfully", body = ApiResponse<entities::note_content::Model>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 404, description = "Note not found", body = ApiResponse<String>),
         (status = 500, description = "Internal server error", body = ApiResponse<String>),
     )
 )]
 #[axum::debug_handler]
-pub async fn get_blocks_by_note_id(
+pub async fn get_note_content_by_note_id(
     State(app_state): State<AppState>,
     Path(note_id): Path<Uuid>,
     claims: Claims,
-) -> Result<ApiResponse<Vec<NoteBlock>>, AppError> {
+) -> Result<ApiResponse<entities::note_content::Model>, AppError> {
     use sea_orm::QueryFilter;
     use sea_orm::entity::*;
 
-    // fetch all blocks for the given note_id that belongs to this user
-    let blocks = entities::block::Entity::find()
-        .filter(entities::block::Column::NoteId.eq(note_id))
+    // fetch note content for the given note_id that belongs to this user
+    let note_content = entities::note_content::Entity::find()
+        .filter(entities::note_content::Column::NoteId.eq(note_id))
         .filter(
-            entities::block::Column::NoteId.in_subquery(
+            entities::note_content::Column::NoteId.in_subquery(
                 entities::note::Entity::find()
                     .select_only()
                     .column(entities::note::Column::Id)
@@ -160,52 +161,45 @@ pub async fn get_blocks_by_note_id(
                     .into_query(),
             ),
         )
-        .all(&app_state.db)
+        .one(&app_state.db)
         .await
-        .map_err(|e| BaseError::DatabaseError.get_response().with_debug(e))?;
-
-    let note_blocks: Vec<NoteBlock> = blocks
-        .into_iter()
-        .map(|x| {
-            NoteBlock::try_from(x)
-                .map_err(|e| NotesError::NoteMalFormed.get_response().with_debug(e))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map_err(|e| BaseError::DatabaseError.get_response().with_debug(e))?
+        .ok_or_else(|| BaseError::NotFound.get_response())?;
 
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::OK,
-        "Blocks retrieved successfully",
-        note_blocks,
+        "Note content retrieved successfully",
+        note_content,
     ))
 }
 
-/// Get block by ID
+/// Get note content by ID
 ///
-/// Retrieves a specific block by its ID. The block must belong to a note owned by the authenticated user.
+/// Retrieves a specific note content by its ID. The note content must belong to a note owned by the authenticated user.
 #[utoipa::path(
     get,
-    path = "/api/v1/notes/block/{block_id}",
+    path = "/api/v1/notes/content/{content_id}",
     tag = "notes",
     security(
         ("bearer" = [])
     ),
     params(
-        ("block_id" = Uuid, Path, description = "Block ID")
+        ("note_content_id" = Uuid, Path, description = "Note content ID")
     ),
     responses(
-        (status = 200, description = "Block retrieved successfully", body = ApiResponse<NoteBlock>),
+        (status = 200, description = "Note Content retrieved successfully", body = ApiResponse<entities::note_content::Model>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
-        (status = 404, description = "Block not found", body = ApiResponse<String>),
+        (status = 404, description = "Note content not found", body = ApiResponse<String>),
         (status = 500, description = "Internal server error", body = ApiResponse<String>),
     )
 )]
 #[axum::debug_handler]
-pub async fn get_block_by_id(
+pub async fn get_note_content_by_id(
     claims: Claims,
-    Path(block_id): Path<Uuid>,
+    Path(note_content_id): Path<Uuid>,
     State(app_state): State<AppState>,
-) -> Result<ApiResponse<NoteBlock>, AppError> {
-    let (block, note) = entities::block::Entity::find_by_id(block_id)
+) -> Result<ApiResponse<entities::note_content::Model>, AppError> {
+    let (content, note) = entities::note_content::Entity::find_by_id(note_content_id)
         .find_also_related(entities::note::Entity)
         .one(&app_state.db)
         .await
@@ -217,9 +211,8 @@ pub async fn get_block_by_id(
     }
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::OK,
-        "Block retrieved successfully",
-        NoteBlock::try_from(block)
-            .map_err(|e| NotesError::NoteMalFormed.get_response().with_debug(e))?,
+        "Note content retrieved successfully",
+        content,
     ))
 }
 
@@ -266,17 +259,17 @@ pub async fn create_note(
     ))
 }
 
-/// Create a new block for a note
+/// Create a new note content for a note
 #[utoipa::path(
     post,
-    path = "/api/v1/notes/block",
+    path = "/api/v1/notes/content",
     tag = "notes",
     security(
         ("bearer" = [])
     ),
-    request_body = SeededBlock,
+    request_body = SeededNoteContent,
     responses(
-        (status = 201, description = "Block created successfully", body = ApiResponse<NoteBlock>),
+        (status = 201, description = "Note content created successfully", body = ApiResponse<SeededNoteContent>),
         (status = 400, description = "Invalid input", body = ApiResponse<String>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 404, description = "Note not found", body = ApiResponse<String>),
@@ -284,17 +277,17 @@ pub async fn create_note(
     )
 )]
 #[axum::debug_handler]
-pub async fn create_block(
+pub async fn create_note_content(
     claims: Claims,
     State(app_state): State<AppState>,
-    Json(block): Json<SeededBlock>,
-) -> Result<ApiResponse<NoteBlock>, AppError> {
+    Json(content): Json<SeededNoteContent>,
+) -> Result<ApiResponse<entities::note_content::Model>, AppError> {
     // Validate input
-    validate_block(&block)?;
+    validate_content(&content.content, content.version)?;
 
     // Verify the note exists and belongs to the user
     if entities::note::Entity::find()
-        .filter(entities::note::Column::Id.eq(block.note_id))
+        .filter(entities::note::Column::Id.eq(content.note_id))
         .filter(entities::note::Column::UserId.eq(claims.user_id))
         .one(&app_state.db)
         .await
@@ -304,12 +297,10 @@ pub async fn create_block(
         return Err(BaseError::NotFound.get_response());
     }
 
-    let inserted_block_entity = entities::block::ActiveModel {
-        note_id: Set(block.note_id),
-        content: Set(serde_json::to_value(&block.content)
-            .map_err(|e| BaseError::InternalServer.get_response().with_debug(e))?),
-        version: Set(block.version.unwrap_or(1)),
-        order: Set(block.order),
+    let inserted_note_content = entities::note_content::ActiveModel {
+        note_id: Set(content.note_id),
+        content: Set(content.content),
+        version: Set(content.version.unwrap_or(1)),
         ..Default::default()
     }
     .insert(&app_state.db)
@@ -318,8 +309,65 @@ pub async fn create_block(
 
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::CREATED,
-        "Block created successfully",
-        NoteBlock::try_from(inserted_block_entity)
-            .map_err(|e| NotesError::NoteMalFormed.get_response().with_debug(e))?,
+        "Note content created successfully",
+        inserted_note_content,
+    ))
+}
+
+/// Update the note content
+#[utoipa::path(
+    patch,
+    path = "/api/v1/notes/content",
+    tag = "notes",
+    security(
+        ("bearer" = [])
+    ),
+    request_body = entities::note_content::Model,
+    responses(
+        (status = 201, description = "Note content created successfully", body = ApiResponse<PatchNoteContent>),
+        (status = 400, description = "Invalid input", body = ApiResponse<String>),
+        (status = 401, description = "Unauthorized", body = ApiResponse<String>),
+        (status = 404, description = "Note not found", body = ApiResponse<String>),
+        (status = 500, description = "Internal server error", body = ApiResponse<String>),
+    )
+)]
+#[axum::debug_handler]
+pub async fn patch_note_content(
+    claims: Claims,
+    State(app_state): State<AppState>,
+    Json(content): Json<PatchNoteContent>,
+) -> Result<ApiResponse<entities::note_content::Model>, AppError> {
+    validate_content(&content.content, content.version)?;
+
+    // Fetch note content and its associated note
+    let (note_content, note) = entities::note_content::Entity::find_by_id(content.content_id)
+        .find_also_related(entities::note::Entity)
+        .one(&app_state.db)
+        .await
+        .map_err(|e| BaseError::DatabaseError.get_response().with_debug(e))?
+        .ok_or_else(|| BaseError::NotFound.get_response())?;
+
+    // Verify ownership
+    let note = note.ok_or_else(|| BaseError::NotFound.get_response())?;
+
+    if note.user_id != claims.user_id {
+        return Err(BaseError::NotFound.get_response());
+    }
+
+    // Update content
+    let updated = entities::note_content::ActiveModel {
+        id: Set(note_content.id),
+        content: Set(content.content),
+        version: content.version.map_or(NotSet, Set),
+        ..Default::default()
+    }
+    .update(&app_state.db)
+    .await
+    .map_err(|e| BaseError::DatabaseError.get_response().with_debug(e))?;
+
+    Ok(ApiResponse::success_response(
+        axum::http::StatusCode::OK,
+        "Updated the content successfully",
+        updated,
     ))
 }

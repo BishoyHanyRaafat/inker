@@ -21,12 +21,7 @@ async fn test_login_empty_email_returns_bad_request() {
         .await;
 
     // Should return 400 Bad Request for missing/empty email
-    let body = assert_status_json(response, StatusCode::BAD_REQUEST);
-    assert!(
-        body["success"] == false,
-        "response body:\n{}",
-        serde_json::to_string_pretty(&body).unwrap()
-    );
+    assert_status_json(response, StatusCode::BAD_REQUEST);
 }
 
 /// Test that login returns 400 when password is empty
@@ -43,12 +38,7 @@ async fn test_login_empty_password_returns_bad_request() {
         .await;
 
     // Should return 400 Bad Request for missing/empty password
-    let body = assert_status_json(response, StatusCode::BAD_REQUEST);
-    assert!(
-        body["success"] == false,
-        "response body:\n{}",
-        serde_json::to_string_pretty(&body).unwrap()
-    );
+    assert_status_json(response, StatusCode::BAD_REQUEST);
 }
 
 /// Test that login returns 401 for non-existent user
@@ -71,12 +61,7 @@ async fn test_login_nonexistent_user_returns_unauthorized() {
         .await;
 
     // Should return 401 Unauthorized for non-existent user
-    let body = assert_status_json(response, StatusCode::UNAUTHORIZED);
-    assert!(
-        body["success"] == false,
-        "response body:\n{}",
-        serde_json::to_string_pretty(&body).unwrap()
-    );
+    assert_status_json(response, StatusCode::UNAUTHORIZED);
 }
 
 /// Test that login returns 422 when JSON body is missing required fields
