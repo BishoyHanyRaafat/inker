@@ -25,5 +25,6 @@ pub struct SeededNoteContent {
 pub struct PatchNoteContent {
     pub version: Option<i32>,
     pub content: String,
-    pub content_id: uuid::Uuid,
+    /// This can be either content id or the note id
+    pub id: uuid::Uuid,
 }

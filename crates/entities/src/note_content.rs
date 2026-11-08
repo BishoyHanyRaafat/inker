@@ -6,6 +6,7 @@ use utoipa::ToSchema;
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize, ToSchema)]
+#[schema(as = NoteContent)]
 #[sea_orm(table_name = "note_content")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]

@@ -1,10 +1,10 @@
 use anyhow::{Context, Result, anyhow};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::process::Command;
 
 /// A single caption segment with timing
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Caption {
     /// Start time in seconds
     pub start: f64,
@@ -14,8 +14,35 @@ pub struct Caption {
     pub text: String,
 }
 
-/// Collection of captions from a video
 #[derive(Debug, Clone)]
+pub struct Transcript {
+    pub video_id: String,
+    pub captions: Captions,
+    pub title: String,
+    pub description: String,
+}
+
+impl Transcript {
+    pub fn new(
+        video_id: impl Into<String>,
+        captions: Captions,
+        title: String,
+        description: String,
+    ) -> Self {
+        Self {
+            video_id: video_id.into(),
+            captions,
+            title,
+            description,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.captions.segments.is_empty()
+    }
+}
+/// Collection of captions from a video
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Captions {
     pub segments: Vec<Caption>,
 }
@@ -84,7 +111,7 @@ impl YouTubeCaptions {
     }
 
     /// Fetch captions from a public video
-    pub async fn fetch_captions(&self, video_url: &str) -> Result<Captions> {
+    pub async fn fetch_captions(&self, video_url: &str) -> Result<Transcript> {
         // Step 1: Use yt-dlp to get video info as JSON
         let output = Command::new("yt-dlp")
             .args(["-j", "--skip-download", video_url])
@@ -119,14 +146,21 @@ impl YouTubeCaptions {
 
         // Step 4: Parse json3 into our Caption struct
         let captions = Json3Response::parse(&json3_content)?;
+        let transcript = Transcript {
+            video_id: video_url.to_string(),
+            captions,
+            title: video_info.title.to_string(),
+            description: video_info.description.to_string(),
+        };
 
-        Ok(captions)
+        Ok(transcript)
     }
 }
 
-/// Root video info from yt-dlp -j output
 #[derive(Debug, Deserialize)]
 struct VideoInfo {
+    pub title: String,
+    pub description: String,
     #[serde(default)]
     subtitles: SubtitleCollection,
     #[serde(default)]
@@ -305,17 +339,20 @@ mod tests {
             .unwrap();
 
         assert!(
-            !captions.segments.is_empty(),
+            !captions.captions.segments.is_empty(),
             "Captions should not be empty"
         );
 
-        println!("Found {} caption segments", captions.segments.len());
-        for cap in captions.segments.iter().take(5) {
+        println!(
+            "Found {} caption segments",
+            captions.captions.segments.len()
+        );
+        for cap in captions.captions.segments.iter().take(5) {
             println!("[{:.2}–{:.2}] {}", cap.start, cap.end, cap.text);
         }
 
         // Test VTT generation
-        let vtt = captions.to_vtt();
+        let vtt = captions.captions.to_vtt();
         assert!(vtt.starts_with("WEBVTT"));
         println!(
             "\n--- Generated VTT (first 500 chars) ---\n{}",

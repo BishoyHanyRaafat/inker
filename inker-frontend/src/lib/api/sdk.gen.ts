@@ -71,11 +71,9 @@ export const signup = <ThrowOnError extends boolean = false>(options: Options<Si
 });
 
 /**
- * Websocket handler for YouTube stream processing
- * Every 10 seconds, sends processed chunks based on the current stream state
- * YouTubeStreamEventUpdate messages control the stream state
- * You should send updates as the user interacts with the stream
- * Make sure the access token stored in the cookies
+ * WebSocket handler for YouTube stream processing.
+ *
+ * Timestamped outline nodes are scheduled at 80% of their section duration.
  */
 export const wsHandler = <ThrowOnError extends boolean = false>(options: Options<WsHandlerData, ThrowOnError>): RequestResult<WsHandlerResponses, unknown, ThrowOnError> => (options.client ?? client).get<WsHandlerResponses, unknown, ThrowOnError>({
   url: '/api/v1/interactive/yt/ws',

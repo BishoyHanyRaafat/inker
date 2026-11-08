@@ -5,11 +5,11 @@ members = [
   "crates/entities",
   "crates/http",
   "crates/migration",
-  "crates/ml-processing",
   "crates/yt-processing",
 ]
 
 [workspace.dependencies]
+agentic-pipeline = { path = "crates/agentic-pipeline" }
 anyhow = "1.0"
 argon2 = "0.5"
 async-trait = "0.1"
@@ -26,10 +26,9 @@ chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 # Entities crate
 entities = { path = "crates/entities" }
-gemini-rust = "1.5.1"
+futures = "0.3.34"
 http-body-util = "0.1"
 jsonwebtoken = "9.3"
-ml-processing = { path = "crates/ml-processing" }
 oauth2 = "*"
 password-hash = "0.5.0"
 regex = "1"
@@ -51,7 +50,6 @@ thiserror = "2.0.17"
 time = "0.3"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.27"  ## For websocket support
-toon-format = "0.4"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 tracing = "0.1"

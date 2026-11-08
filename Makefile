@@ -4,11 +4,15 @@ DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/postgres
 
 .PHONY: run ## Run the HTTP server
 run:
+	@echo "Updating API"
+	$(MAKE) generate-api
 	@echo "Running HTTP server..."
 	DATABASE_URL="$(DATABASE_URL)" cargo run --bin http
 
 .PHONY: watch ## Watch for changes and restart the HTTP server
 watch:
+	@echo "Updating API"
+	$(MAKE) generate-api
 	@echo "Watching for changes in crates/http and crates/entities..."
 	@echo "Note: Install cargo-watch with 'cargo install cargo-watch' if not available"
 	DATABASE_URL="$(DATABASE_URL)" cargo watch \
@@ -56,6 +60,11 @@ frontend:
 	fi
 	@echo "Running npm $(ARGS)..."
 	cd inker-frontend && npm run $(ARGS)
+
+.PHONY: generate-api ## generate-api api bindings for frontend
+generate-api:
+	cargo run --bin http -- --openapi > ./inker-frontend/openapi.json
+	cd inker-frontend && openapi-ts
 
 .PHONY: help ## Display available commands
 help:

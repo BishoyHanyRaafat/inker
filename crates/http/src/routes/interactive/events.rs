@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::errors::YoutubeError;
-use ml_processing::ProcessedChunk;
+use agentic_pipeline::pipeline::SectionQuestions;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -13,6 +13,7 @@ pub enum YouTubeStreamEventUpdate {
     Seeked { position: f64 },
     Paused,
     Resumed,
+    PositionUpdated { position: f64 },
 }
 
 pub enum YouTubeStreamState {
@@ -27,7 +28,8 @@ pub enum YouTubeStreamState {
 pub enum YouTubeStreamResponse {
     #[schema(example = "some error", value_type=String)]
     Error(YoutubeError),
-    Chunk(ProcessedChunk),
+    Question(SectionQuestions),
+    Ready,
 }
 
 impl From<YoutubeError> for YouTubeStreamResponse {
@@ -42,14 +44,8 @@ impl From<serde_json::Error> for YouTubeStreamResponse {
     }
 }
 
-impl From<ProcessedChunk> for YouTubeStreamResponse {
-    fn from(chunk: ProcessedChunk) -> Self {
-        YouTubeStreamResponse::Chunk(chunk)
-    }
-}
-
-impl From<ml_processing::Error> for YouTubeStreamResponse {
-    fn from(error: ml_processing::Error) -> Self {
-        YouTubeStreamResponse::Error(YoutubeError::from(error))
+impl From<SectionQuestions> for YouTubeStreamResponse {
+    fn from(section: SectionQuestions) -> Self {
+        YouTubeStreamResponse::Question(section)
     }
 }

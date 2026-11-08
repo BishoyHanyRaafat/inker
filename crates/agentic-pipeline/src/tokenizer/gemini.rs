@@ -1,3 +1,7 @@
+/// DEPRECATED:
+/// Not currently used
+/// Tokenizer estimates are much faster
+///
 use std::sync::Arc;
 
 use reqwest::Client;
@@ -20,8 +24,8 @@ pub struct GeminiTokenCounter {
 
 impl GeminiTokenCounter {
     pub fn from_env(model: impl Into<String>) -> Result<Self, PipelineError> {
-        let api_key = std::env::var("GEMINI_API_KEY")
-            .map_err(|_| PipelineError::MissingEnv("GEMINI_API_KEY"))?;
+        let api_key =
+            std::env::var("GEMINI_API_KEY").map_err(|_| PipelineError::MissingEnv("GEMINI_KEY"))?;
 
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(15))
@@ -57,6 +61,7 @@ impl GeminiTokenCounter {
             .error_for_status()?
             .json::<CountTokensResponse>()
             .await?;
+        tracing::info!("Token count of the current section is: {:?}", response);
 
         Ok(response.total_tokens)
     }

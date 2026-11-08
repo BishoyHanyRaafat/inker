@@ -1,3 +1,4 @@
+use crate::pipeline::{ExtractedConceptMetaData, MAX_SECTION_TOKENS, MAX_SECTIONS_PER_BATCH};
 use std::sync::Arc;
 
 use rig::{prelude::*, tool::ToolContext};
@@ -7,9 +8,6 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use yt_processing::Caption;
-
-pub const MAX_SECTION_TOKENS: usize = 2_700;
-pub const MAX_SECTIONS_PER_BATCH: usize = 5;
 
 #[derive(Debug, Clone)]
 struct PreparedSegment {
@@ -21,6 +19,8 @@ struct PreparedSegment {
 struct SectionState {
     cursor: usize,
     calls_in_batch: usize,
+    tool_calls_count: usize,
+    batch_metadata: ExtractedConceptMetaData,
 }
 
 #[derive(Debug, Error)]
@@ -30,6 +30,9 @@ pub enum SectionToolError {
 
     #[error("Batch limit reached; generate the outline before continuing")]
     BatchLimitReached,
+
+    #[error("This segment is too big")]
+    OversizedSegment,
 }
 
 #[derive(Debug, Deserialize)]
@@ -45,7 +48,7 @@ pub struct SectionResult {
     pub has_more: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GetTranscriptSection {
     segments: Arc<Vec<PreparedSegment>>,
     state: Arc<Mutex<SectionState>>,
@@ -68,7 +71,15 @@ impl GetTranscriptSection {
     }
 
     pub async fn reset_batch(&self) {
-        self.state.lock().await.calls_in_batch = 0;
+        let mut state = self.state.lock().await;
+        state.calls_in_batch = 0;
+        state.batch_metadata.start_time = 0.0;
+        state.batch_metadata.end_time = 0.0;
+        state.batch_metadata.transcript_content = String::new();
+    }
+
+    pub async fn get_batch_meta(&self) -> ExtractedConceptMetaData {
+        self.state.lock().await.batch_metadata.clone()
     }
 
     pub async fn has_more(&self) -> bool {
@@ -87,10 +98,11 @@ impl Tool for GetTranscriptSection {
     fn description(&self) -> String {
         format!(
             "Retrieve the next sequential section of the YouTube transcript. \
-             Each section contains approximately {MAX_SECTION_TOKENS} tokens. \
+             Each section contains at most {MAX_SECTION_TOKENS} estimated tokens. \
              Retrieve sections until batch_complete is true. \
              When batch_complete is true, stop calling this tool and update \
-             your outline before requesting more sections."
+             your outline before requesting more sections. \
+             If has_more is false, the transcript is exhausted."
         )
     }
 
@@ -126,16 +138,21 @@ impl Tool for GetTranscriptSection {
         while state.cursor < self.segments.len() {
             let item = &self.segments[state.cursor];
 
+            if item.token_count > MAX_SECTION_TOKENS {
+                return Err(SectionToolError::OversizedSegment);
+            }
+
             if !content.is_empty() && token_count + item.token_count > MAX_SECTION_TOKENS {
                 break;
             }
 
             if content.is_empty() {
                 start_seconds = item.segment.start;
+            } else {
+                content.push(' ');
             }
 
             content.push_str(&item.segment.text);
-            content.push('\n');
 
             token_count += item.token_count;
             end_seconds = item.segment.end;
@@ -143,12 +160,20 @@ impl Tool for GetTranscriptSection {
             state.cursor += 1;
         }
 
+        state.tool_calls_count += 1;
         state.calls_in_batch += 1;
-
-        let batch_complete = state.calls_in_batch >= MAX_SECTIONS_PER_BATCH;
 
         let has_more = state.cursor < self.segments.len();
 
+        let batch_complete = state.calls_in_batch >= MAX_SECTIONS_PER_BATCH;
+
+        tracing::info!("Sending from {} to {}", start_seconds, end_seconds,);
+
+        state.batch_metadata.transcript_content.push_str(&content);
+        state.batch_metadata.end_time = end_seconds;
+        if state.batch_metadata.start_time == 0.0 {
+            state.batch_metadata.start_time = start_seconds;
+        }
         Ok(SectionResult {
             start_seconds,
             end_seconds,

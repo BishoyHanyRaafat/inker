@@ -20,6 +20,12 @@ pub enum PipelineError {
     #[error("A transcript segment exceeds the section token budget")]
     OversizedSegment,
 
-    #[error("Agent execution failed: {0}")]
-    Agent(String),
+    #[error("Outline agent execution failed: {0}")]
+    OutlineAgent(String),
+
+    #[error("Merge agent execution failed: {0}")]
+    MergeAgent(String),
+
+    #[error("Question agent execution failed: {0}")]
+    QuestionAgent(String),
 }

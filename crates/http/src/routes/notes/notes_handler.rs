@@ -9,7 +9,11 @@ use crate::{
 };
 use axum::Json;
 use axum::extract::{Path, State};
-use sea_orm::{ActiveValue::NotSet, ActiveValue::Set, QuerySelect, QueryTrait, prelude::*};
+use sea_orm::{
+    ActiveValue::{NotSet, Set},
+    Condition, QuerySelect, QueryTrait,
+    prelude::*,
+};
 use uuid::Uuid;
 
 // Validation constants
@@ -297,6 +301,18 @@ pub async fn create_note_content(
         return Err(BaseError::NotFound.get_response());
     }
 
+    if entities::note_content::Entity::find()
+        .filter(entities::note_content::Column::NoteId.eq(content.note_id))
+        .one(&app_state.db)
+        .await
+        .map_err(|e| BaseError::DatabaseError.get_response().with_debug(e))?
+        .is_none()
+    {
+        return Err(BaseError::InternalServer
+            .get_response()
+            .with_debug("Error creating duplicated content"));
+    }
+
     let inserted_note_content = entities::note_content::ActiveModel {
         note_id: Set(content.note_id),
         content: Set(content.content),
@@ -322,9 +338,9 @@ pub async fn create_note_content(
     security(
         ("bearer" = [])
     ),
-    request_body = entities::note_content::Model,
+    request_body = PatchNoteContent,
     responses(
-        (status = 201, description = "Note content created successfully", body = ApiResponse<PatchNoteContent>),
+        (status = 201, description = "Note content created successfully", body = ApiResponse<entities::note_content::Model>),
         (status = 400, description = "Invalid input", body = ApiResponse<String>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 404, description = "Note not found", body = ApiResponse<String>),
@@ -340,7 +356,12 @@ pub async fn patch_note_content(
     validate_content(&content.content, content.version)?;
 
     // Fetch note content and its associated note
-    let (note_content, note) = entities::note_content::Entity::find_by_id(content.content_id)
+    let (note_content, note) = entities::note_content::Entity::find()
+        .filter(
+            Condition::any()
+                .add(entities::note_content::Column::Id.eq(content.id))
+                .add(entities::note_content::Column::NoteId.eq(content.id)),
+        )
         .find_also_related(entities::note::Entity)
         .one(&app_state.db)
         .await

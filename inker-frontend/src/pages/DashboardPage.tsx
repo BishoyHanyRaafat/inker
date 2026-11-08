@@ -7,7 +7,7 @@ import { Logo } from "@/components/ui/logo";
 import { PageLoader } from "@/components/ui/spinner";
 import { getNotes, createNote } from "../lib/api";
 import { isAuthenticated, clearTokens } from "../lib/api-config";
-import type { Model } from "../lib/api/types.gen";
+import type { Note } from "../lib/api/types.gen";
 
 import {
   Plus,
@@ -22,7 +22,7 @@ import {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [notes, setNotes] = useState<Model[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -267,7 +267,7 @@ export default function DashboardPage() {
   );
 }
 
-function NoteCard({ note }: { note: Model }) {
+function NoteCard({ note }: { note: Note }) {
   return (
     <Link to={`/notes/${note.id}`}>
       <Card className="group card-hover border-border/50 bg-card/50 backdrop-blur-sm cursor-pointer h-full">

@@ -77,7 +77,6 @@ impl TestAppStateBuilder {
             self.ua_parser.unwrap_or_else(create_test_ua_parser),
             self.providers.unwrap_or_else(create_test_providers),
             self.http_client.unwrap_or_default(),
-            create_test_gemini_client(),
             yt_processing::YouTubeCaptions::default(),
         )
     }
@@ -135,12 +134,6 @@ pub fn create_test_providers() -> Providers {
             scopes: vec!["profile".into(), "email".into()],
         },
     }
-}
-
-/// Creates a test Gemini client with a dummy API key.
-pub fn create_test_gemini_client() -> ml_processing::GeminiClient {
-    ml_processing::GeminiClient::new(defaults::GEMINI_API_KEY.into())
-        .expect("Failed to create test Gemini client")
 }
 
 /// Creates a complete test AppState with sensible defaults.

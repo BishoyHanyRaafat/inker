@@ -14,7 +14,7 @@ export type ClozeQuestion = {
   text: string;
 };
 
-export type FlashCard = {
+export type FlashCardQuestion = {
   answer: string;
   question: string;
 };
@@ -24,7 +24,18 @@ export type LoginUser = {
   password: string;
 };
 
-export type Model = {
+export type Note = {
+  archived: boolean;
+  created_at: string;
+  deleted_at?: string | null;
+  id: string;
+  pinned: boolean;
+  title: string;
+  updated_at: string;
+  user_id: string;
+};
+
+export type NoteContent = {
   content: string;
   id: string;
   note_id: string;
@@ -33,17 +44,18 @@ export type Model = {
 
 export type OauthProvider = 'google' | 'facebook' | 'twitter' | 'github';
 
-export type PatchNoteContent = {
-  content: string;
-  content_id: string;
-  version?: number | null;
+export type OpenEndedQuestion = {
+  answer: string;
+  question: string;
 };
 
-export type ProcessedChunk = {
-  cloze_questions: Array<ClozeQuestion>;
-  flashcards: Array<FlashCard>;
-  keypoints: Array<string>;
-  summary: string;
+export type PatchNoteContent = {
+  content: string;
+  /**
+   * This can be either content id or the note id
+   */
+  id: string;
+  version?: number | null;
 };
 
 export type ProviderPath = {
@@ -73,7 +85,7 @@ export type ResponseAuth = {
 /**
  * Standard API Response
  */
-export type ResponseModel = {
+export type ResponseNote = {
   data?: {
     archived: boolean;
     created_at: string;
@@ -95,11 +107,12 @@ export type ResponseModel = {
 /**
  * Standard API Response
  */
-export type ResponsePatchNoteContent = {
+export type ResponseNoteContent = {
   data?: {
     content: string;
-    content_id: string;
-    version?: number | null;
+    id: string;
+    note_id: string;
+    version: number;
   };
   debug?: string | null;
   errors?: {
@@ -147,7 +160,7 @@ export type ResponseString = {
 /**
  * Standard API Response
  */
-export type ResponseVecModel = {
+export type ResponseVecNote = {
   data?: Array<{
     archived: boolean;
     created_at: string;
@@ -164,6 +177,12 @@ export type ResponseVecModel = {
   };
   message: string;
   redirect_to?: string | null;
+};
+
+export type SectionQuestions = {
+  cloze: Array<ClozeQuestion>;
+  flashcards: Array<FlashCardQuestion>;
+  open_ended: Array<OpenEndedQuestion>;
 };
 
 export type SeededNote = {
@@ -208,14 +227,21 @@ export type YouTubeStreamEventUpdate = {
   type: 'paused';
 } | {
   type: 'resumed';
+} | {
+  data: {
+    position: number;
+  };
+  type: 'position_updated';
 };
 
 export type YouTubeStreamResponse = {
   data: string;
   type: 'error';
 } | {
-  data: ProcessedChunk;
-  type: 'chunk';
+  data: SectionQuestions;
+  type: 'question';
+} | {
+  type: 'ready';
 };
 
 export type LoginData = {
@@ -373,7 +399,7 @@ export type GetNotesResponses = {
   /**
    * Notes retrieved successfully
    */
-  200: ResponseVecModel;
+  200: ResponseVecNote;
 };
 
 export type GetNotesResponse = GetNotesResponses[keyof GetNotesResponses];
@@ -406,13 +432,13 @@ export type CreateNoteResponses = {
   /**
    * Note created successfully
    */
-  201: ResponseModel;
+  201: ResponseNote;
 };
 
 export type CreateNoteResponse = CreateNoteResponses[keyof CreateNoteResponses];
 
 export type PatchNoteContentData = {
-  body: Model;
+  body: PatchNoteContent;
   path?: never;
   query?: never;
   url: '/api/v1/notes/content';
@@ -443,7 +469,7 @@ export type PatchNoteContentResponses = {
   /**
    * Note content created successfully
    */
-  201: ResponsePatchNoteContent;
+  201: ResponseNoteContent;
 };
 
 export type PatchNoteContentResponse = PatchNoteContentResponses[keyof PatchNoteContentResponses];
@@ -518,7 +544,7 @@ export type GetNoteContentByIdResponses = {
   /**
    * Note Content retrieved successfully
    */
-  200: ResponseModel;
+  200: ResponseNoteContent;
 };
 
 export type GetNoteContentByIdResponse = GetNoteContentByIdResponses[keyof GetNoteContentByIdResponses];
@@ -556,7 +582,7 @@ export type GetNoteByIdResponses = {
   /**
    * Note retrieved successfully
    */
-  200: ResponseModel;
+  200: ResponseNote;
 };
 
 export type GetNoteByIdResponse = GetNoteByIdResponses[keyof GetNoteByIdResponses];
@@ -594,7 +620,7 @@ export type GetNoteContentByNoteIdResponses = {
   /**
    * Content retrieved successfully
    */
-  200: ResponseModel;
+  200: ResponseNoteContent;
 };
 
 export type GetNoteContentByNoteIdResponse = GetNoteContentByNoteIdResponses[keyof GetNoteContentByNoteIdResponses];

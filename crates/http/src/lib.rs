@@ -16,7 +16,6 @@ pub struct AppState {
     pub ua_parser: Arc<UserAgentParser>,
     pub providers: Providers,
     pub http_client: reqwest::Client,
-    pub gemini_client: ml_processing::GeminiClient,
     pub youtube_captions: yt_processing::YouTubeCaptions,
 }
 
@@ -26,7 +25,6 @@ impl AppState {
         ua_parser: Arc<UserAgentParser>,
         providers: Providers,
         http_client: reqwest::Client,
-        gemini_client: ml_processing::GeminiClient,
         youtube_captions: yt_processing::YouTubeCaptions,
     ) -> Self {
         Self {
@@ -34,7 +32,6 @@ impl AppState {
             ua_parser,
             providers,
             http_client,
-            gemini_client,
             youtube_captions,
         }
     }

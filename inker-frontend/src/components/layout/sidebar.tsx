@@ -6,7 +6,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { getNotes, createNote } from "../../lib/api";
 import { clearTokens } from "../../lib/api-config";
-import type { Model } from "../../lib/api/types.gen";
+import type { Note } from "../../lib/api/types.gen";
 import {
   FileText,
   Plus,
@@ -26,7 +26,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [notes, setNotes] = useState<Model[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -238,7 +238,7 @@ export function Sidebar({ className }: SidebarProps) {
   );
 }
 
-function NoteItem({ note, isActive }: { note: Model; isActive: boolean }) {
+function NoteItem({ note, isActive }: { note: Note; isActive: boolean }) {
   return (
     <Link
       to={`/notes/${note.id}`}

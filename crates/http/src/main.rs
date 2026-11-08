@@ -98,14 +98,20 @@ async fn debug_logger(request: Request<Body>, next: Next) -> Response {
 
 #[tokio::main]
 async fn main() {
+    if std::env::args().any(|arg| arg == "--openapi") {
+        let openapi = openapi::ApiDoc::openapi();
+        println!("{}", openapi.to_pretty_json().unwrap());
+        return;
+    }
     dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "http=info,http::debug=info,ml_processing=info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "http=info,http::debug=info,agentic_pipeline=info,rig=info".into()
+            }),
         )
         .init();
     let yaml_content = fs::read_to_string("resources/user_agent_regexes.yaml")
@@ -121,10 +127,6 @@ async fn main() {
         ua_parser,
         Providers::default(),
         reqwest::Client::new(),
-        ml_processing::GeminiClient::new(
-            env::var("GEMINI_KEY").expect("GOOGLE_GEMINI_API_KEY must be set"),
-        )
-        .expect("Failed to create Gemini client"),
         yt_processing::YouTubeCaptions::default(),
     );
     let default_route = Router::new();
@@ -153,7 +155,13 @@ async fn main() {
         .allow_origin([config::FRONTEND_URL
             .parse::<HeaderValue>()
             .expect("Invalid FRONTEND_URL")])
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::PATCH,
+        ])
         .allow_headers([CONTENT_TYPE, AUTHORIZATION])
         .allow_credentials(true);
 

@@ -9,26 +9,12 @@ import { Logo } from "@/components/ui/logo";
 import { clearTokens, isAuthenticated } from "../lib/api-config";
 import { cn } from "../lib/utils";
 import type {
-  ProcessedChunk,
+  ClozeQuestion,
+  FlashCardQuestion,
+  OpenEndedQuestion,
   YouTubeStreamResponse,
 } from "../lib/api/types.gen";
 import { ArrowLeft, LogOut, Pause, Play, RotateCcw } from "lucide-react";
-
-type QuestionItem =
-  | {
-    id: string;
-    kind: "cloze";
-    prompt: string;
-    answers: string[];
-    fromChunk: number;
-  }
-  | {
-    id: string;
-    kind: "flashcard";
-    prompt: string;
-    answers: string[];
-    fromChunk: number;
-  };
 
 function extractYouTubeId(input: string): string | null {
   const raw = input.trim();
@@ -65,6 +51,10 @@ declare global {
     onYouTubeIframeAPIReady?: () => void;
   }
 }
+type Question =
+  | { type: "cloze"; data: ClozeQuestion; id: string }
+  | { type: "flashcard"; data: FlashCardQuestion; id: string }
+  | { type: "open_ended"; data: OpenEndedQuestion; id: string };
 
 export default function InteractiveYouTubeFocusPage() {
   const navigate = useNavigate();
@@ -74,9 +64,9 @@ export default function InteractiveYouTubeFocusPage() {
     "disconnected" | "connecting" | "connected"
   >("disconnected");
   const [lastError, setLastError] = useState<string | null>(null);
-  const [chunksSeen, setChunksSeen] = useState(0);
+  const [questionsCount, setQuestionCount] = useState(0);
 
-  const [questionQueue, setQuestionQueue] = useState<QuestionItem[]>([]);
+  const [questionQueue, setQuestionQueue] = useState<Question[]>([]);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
   const [reveal, setReveal] = useState(false);
   const [attempt, setAttempt] = useState("");
@@ -155,11 +145,12 @@ export default function InteractiveYouTubeFocusPage() {
               sendEvent({ type: "paused" });
             }
             if (e?.data === 3) {
-              // Buffering can be network OR seeking. Capture an anchor time so we can
-              // detect a jump when we return to PLAYING.
               isPlayingRef.current = false;
+              sendEvent({ type: "paused" });
+
               try {
                 const t = playerRef.current?.getCurrentTime?.();
+
                 if (typeof t === "number" && Number.isFinite(t)) {
                   bufferingAnchorRef.current = t;
                 }
@@ -236,9 +227,6 @@ export default function InteractiveYouTubeFocusPage() {
       setWsStatus("connected");
       sendEvent({ type: "start", data: { id: urlForBackend } });
 
-      try {
-        playerRef.current?.playVideo?.();
-      } catch { }
 
       if (!syncTimerRef.current) {
         // Detect real seeks / large jumps (scrubbing, keyboard seeking, jumping while paused).
@@ -290,44 +278,35 @@ export default function InteractiveYouTubeFocusPage() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(String(event.data)) as YouTubeStreamResponse;
-        if (msg.type === "error") {
-          setLastError("Server error while processing the lecture.");
-          return;
+
+        switch (msg.type) {
+          case "ready": {
+            // The backend has finished generating the outline.
+            // Now it's safe to start playback.
+            playerRef.current?.playVideo?.();
+            break;
+          }
+
+          case "error": {
+            setLastError("Server error while processing the lecture.");
+            break;
+          }
+
+          case "question": {
+            console.log("question received:", msg.data);
+            const questions: Question[] = [
+              ...msg.data.cloze.map(data => ({ id: crypto.randomUUID(), type: "cloze" as const, data })),
+              ...msg.data.flashcards.map(data => ({ id: crypto.randomUUID(), type: "flashcard" as const, data })),
+              ...msg.data.open_ended.map(data => ({ id: crypto.randomUUID(), type: "open_ended" as const, data })),
+            ];;
+
+            setQuestionCount(questionsCount + questions.length)
+            setQuestionQueue(questions)
+            break;
+          }
         }
-        if (msg.type !== "chunk") return;
-
-        const chunk: ProcessedChunk = msg.data;
-        setChunksSeen((n) => n + 1);
-
-        setQuestionQueue((prev) => {
-          const chunkIndex = chunksSeen + 1;
-          const next: QuestionItem[] = [];
-
-          for (const c of chunk.cloze_questions || []) {
-            next.push({
-              id: `c-${chunkIndex}-${prev.length + next.length}`,
-              kind: "cloze",
-              prompt: c.text,
-              answers: c.answers,
-              fromChunk: chunkIndex,
-            });
-          }
-
-          for (const f of chunk.flashcards || []) {
-            next.push({
-              id: `f-${chunkIndex}-${prev.length + next.length}`,
-              kind: "flashcard",
-              prompt: f.question,
-              answers: [f.answer],
-              fromChunk: chunkIndex,
-            });
-          }
-
-          if (next.length === 0) return prev;
-          return [...prev, ...next];
-        });
-      } catch {
-        // ignore malformed messages
+      } catch (error) {
+        console.error("Invalid WebSocket message:", error);
       }
     };
   }
@@ -385,6 +364,7 @@ export default function InteractiveYouTubeFocusPage() {
                 {wsStatus}
               </span>
             </div>
+
             <Button
               variant="ghost"
               size="sm"
@@ -403,15 +383,17 @@ export default function InteractiveYouTubeFocusPage() {
 
       <main className="container mx-auto px-4 py-6 relative z-10">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Focus Lecture */}
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
                 <span>Focus Lecture</span>
                 <div className="text-xs text-muted-foreground">
-                  Chunks: <span className="font-medium">{chunksSeen}</span>
+                  Questions: <span className="font-medium">{questionsCount}</span>
                 </div>
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="text-sm font-medium">YouTube URL / Video ID</div>
@@ -421,6 +403,7 @@ export default function InteractiveYouTubeFocusPage() {
                   placeholder="https://www.youtube.com/watch?v=... or dQw4w9WgXcQ"
                   className="bg-card/50 border-border/50"
                 />
+
                 {lastError && (
                   <div className="text-sm text-destructive">{lastError}</div>
                 )}
@@ -435,6 +418,7 @@ export default function InteractiveYouTubeFocusPage() {
                   <Play className="w-4 h-4 mr-2" />
                   Start (Questions only)
                 </Button>
+
                 <Button
                   variant="outline"
                   onClick={() => sendEvent({ type: "paused" })}
@@ -444,6 +428,7 @@ export default function InteractiveYouTubeFocusPage() {
                   <Pause className="w-4 h-4 mr-2" />
                   Pause
                 </Button>
+
                 <Button
                   variant="outline"
                   onClick={() => sendEvent({ type: "resumed" })}
@@ -453,6 +438,7 @@ export default function InteractiveYouTubeFocusPage() {
                   <Play className="w-4 h-4 mr-2" />
                   Resume
                 </Button>
+
                 <Button
                   variant="outline"
                   onClick={disconnect}
@@ -476,59 +462,93 @@ export default function InteractiveYouTubeFocusPage() {
               </div>
 
               <div className="text-xs text-muted-foreground">
-                This mode intentionally shows <span className="font-medium">questions first</span>.
-                We’ll use summaries at the end of the lecture.
+                This mode intentionally shows{" "}
+                <span className="font-medium">questions first</span>. We’ll use
+                summaries at the end of the lecture.
               </div>
             </CardContent>
           </Card>
 
+          {/* Live Questions */}
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
                 <span>Live Questions</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={restartQueue}
-                    disabled={!hasQuestions}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Restart
-                  </Button>
-                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={restartQueue}
+                  disabled={!hasQuestions}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Restart
+                </Button>
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4">
               {!activeQuestion ? (
                 <div className="rounded-xl border border-dashed border-border/60 bg-background/40 p-6 text-sm text-muted-foreground">
-                  Waiting for the first chunk… once the server generates cloze questions / flashcards,
-                  they’ll appear here one-by-one.
+                  Waiting for the first chunk… once the server generates
+                  questions, they’ll appear here one-by-one.
                 </div>
               ) : (
                 <>
                   <div className="text-xs text-muted-foreground">
                     Question {activeQuestionIdx + 1} / {questionQueue.length} •{" "}
-                    {activeQuestion.kind.toUpperCase()} • chunk {activeQuestion.fromChunk}
+                    {activeQuestion.type.toUpperCase()}
                   </div>
 
                   <div className="rounded-2xl border border-border/50 bg-background/50 p-5">
+                    {/* Question */}
                     <div className="text-lg font-semibold leading-snug">
-                      {activeQuestion.prompt}
+                      {activeQuestion.type === "cloze"
+                        ? activeQuestion.data.text
+                        : activeQuestion.data.question}
                     </div>
+
+                    {/* Your answer */}
                     <div className="mt-4 space-y-2">
                       <div className="text-sm font-medium text-muted-foreground">
                         Your attempt
                       </div>
+
                       <Textarea
                         value={attempt}
                         onChange={(e) => setAttempt(e.target.value)}
-                        placeholder="Type your answer (kept local)"
+                        placeholder="Type your answer..."
                         className="min-h-24 bg-card/50 border-border/50"
                       />
                     </div>
 
+                    {/* Reveal answer */}
+                    {reveal && (
+                      <div className="mt-4 rounded-xl border border-border/50 bg-card/50 p-4">
+                        <div className="text-sm font-medium mb-2">
+                          {activeQuestion.type === "flashcard"
+                            ? "Flashcard Answer"
+                            : activeQuestion.type === "cloze"
+                              ? "Correct Answers"
+                              : "Expected Answer"}
+                        </div>
+
+                        {activeQuestion.type === "cloze" ? (
+                          <ul className="list-disc pl-5 text-sm text-foreground">
+                            {activeQuestion.data.answers.map((answer, i) => (
+                              <li key={i}>{answer}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-sm text-foreground">
+                            {activeQuestion.data.answer}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Controls */}
                     <div className="mt-4 flex flex-wrap gap-3">
                       <Button
                         variant={reveal ? "outline" : "default"}
@@ -537,41 +557,40 @@ export default function InteractiveYouTubeFocusPage() {
                       >
                         {reveal ? "Hide answer" : "Reveal answer"}
                       </Button>
+
                       <Button
                         variant="outline"
                         onClick={nextQuestion}
-                        disabled={activeQuestionIdx >= questionQueue.length - 1}
+                        disabled={
+                          activeQuestionIdx >= questionQueue.length - 1
+                        }
                         className="h-11"
                       >
                         Next
                       </Button>
                     </div>
-
-                    {reveal && (
-                      <div className="mt-4 rounded-xl border border-border/50 bg-card/50 p-4">
-                        <div className="text-sm font-medium mb-2">Answer</div>
-                        <ul className="list-disc pl-5 text-sm text-foreground">
-                          {activeQuestion.answers.map((a, i) => (
-                            <li key={i}>{a}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </div>
                 </>
               )}
 
+              {/* Queue */}
               {questionQueue.length > 0 && (
                 <div className="pt-2 border-t border-border/40">
                   <div className="text-xs text-muted-foreground mb-2">
                     Queue (next up)
                   </div>
+
                   <div className="space-y-2 max-h-40 overflow-auto pr-2">
                     {questionQueue
                       .slice(activeQuestionIdx + 1, activeQuestionIdx + 6)
                       .map((q) => (
-                        <div key={q.id} className="text-sm text-muted-foreground truncate">
-                          {q.prompt}
+                        <div
+                          key={q.id}
+                          className="text-sm text-muted-foreground truncate"
+                        >
+                          {q.type === "cloze"
+                            ? q.data.text
+                            : q.data.question}
                         </div>
                       ))}
                   </div>

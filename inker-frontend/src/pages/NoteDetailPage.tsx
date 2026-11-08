@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { isAuthenticated } from "../lib/api-config";
-import { getNoteById, getNoteContentByNoteId, patchNoteContent } from "../lib/api";
-import type { Model } from "../lib/api/types.gen";
+import { createNoteContent, getNoteById, getNoteContentByNoteId, patchNoteContent } from "../lib/api";
+import type { Note } from "../lib/api/types.gen";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { Logo } from "@/components/ui/logo";
 import { PageLoader, Spinner } from "@/components/ui/spinner";
@@ -19,7 +19,7 @@ import { cn } from "../lib/utils";
 export default function NoteEditorPage() {
   const { id: noteId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [note, setNote] = useState<Model | null>(null);
+  const [note, setNote] = useState<Note | null>(null);
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -27,6 +27,7 @@ export default function NoteEditorPage() {
   const [title, setTitle] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const contentRef = useRef(content);
 
   // Check authentication
   useEffect(() => {
@@ -62,9 +63,15 @@ export default function NoteEditorPage() {
         });
 
         if (contentResponse.data?.data) {
-          // The API returns Model for content, we need the .content property
           const contentData = contentResponse.data.data as any;
-          setContent(contentData.content || "");
+          const loadedContent = contentData.content || "";
+
+          contentRef.current = loadedContent;
+          setContent(loadedContent);
+        } else if (contentResponse.response.status == 404) {
+          await createNoteContent({ "body": { content: "", note_id: noteData.id } })
+          contentRef.current = "";
+          setContent("");
         }
       } catch (err) {
         console.error("Failed to load note:", err);
@@ -79,33 +86,41 @@ export default function NoteEditorPage() {
 
   // Handle content changes
   const handleContentChange = useCallback((newContent: string) => {
+    contentRef.current = newContent;
     setContent(newContent);
     setHasChanges(true);
   }, []);
 
   // Save content
+
   const handleSave = useCallback(async () => {
-    if (!note || !hasChanges) return;
+    if (!note || !hasChanges || isSaving) return;
+
+    const contentToSave = contentRef.current;
 
     setIsSaving(true);
+    console.log("HIII")
+
     try {
       await patchNoteContent({
         body: {
-          content: content,
+          content: contentToSave,
           id: note.id,
-          note_id: note.id,
           version: 1,
         },
       });
 
       setLastSaved(new Date());
-      setHasChanges(false);
+
+      if (contentRef.current === contentToSave) {
+        setHasChanges(false);
+      }
     } catch (err) {
       console.error("Failed to save:", err);
     } finally {
       setIsSaving(false);
     }
-  }, [note, content, hasChanges]);
+  }, [note, hasChanges, isSaving]);
 
   // Auto-save after changes (debounced)
   useEffect(() => {
