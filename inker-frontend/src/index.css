@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "highlight.js/styles/github.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -86,6 +87,8 @@
 
   --radius: 0.75rem;
 
+  --hljs-theme: light;
+
   /* Base */
   --background: oklch(0.985 0.002 264);
   --foreground: oklch(0.18 0.015 264);
@@ -151,6 +154,8 @@
 
 .dark {
   color-scheme: dark;
+
+  --hljs-theme: dark;
 
   /* Base */
   --background: oklch(0.15 0.012 264);
@@ -248,4 +253,37 @@
   ::selection {
     background: oklch(0.585 0.233 277 / 25%);
   }
+}
+
+
+.admonition {
+  @apply my-4 rounded-lg border-l-4 px-4 py-3;
+}
+
+.admonition-note {
+  @apply border-blue-500 bg-blue-500/10;
+}
+
+.admonition-tip {
+  @apply border-green-500 bg-green-500/10;
+}
+
+.admonition-info {
+  @apply border-cyan-500 bg-cyan-500/10;
+}
+
+.admonition-warning {
+  @apply border-yellow-500 bg-yellow-500/10;
+}
+
+.admonition-danger {
+  @apply border-red-500 bg-red-500/10;
+}
+
+.admonition> :first-child {
+  @apply mt-0;
+}
+
+.admonition> :last-child {
+  @apply mb-0;
 }

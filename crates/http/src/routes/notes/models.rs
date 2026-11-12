@@ -3,6 +3,9 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SeededNote {
+    #[schema(default = "1")]
+    pub version: Option<String>,
+    pub content: String,
     pub title: String,
     #[schema(default = false)]
     pub archived: Option<bool>,
@@ -11,20 +14,10 @@ pub struct SeededNote {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct SeededNoteContent {
-    #[schema(default = 1)]
-    pub version: Option<i32>,
-    /// This is a markdown
-    ///
-    /// We can change it in the feature to use MDX to support more components
-    pub content: String,
-    pub note_id: uuid::Uuid,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct PatchNoteContent {
-    pub version: Option<i32>,
-    pub content: String,
-    /// This can be either content id or the note id
-    pub id: uuid::Uuid,
+pub struct PatchedNote {
+    pub version: Option<String>,
+    pub content: Option<String>,
+    pub title: Option<String>,
+    pub archived: Option<bool>,
+    pub pinned: Option<bool>,
 }

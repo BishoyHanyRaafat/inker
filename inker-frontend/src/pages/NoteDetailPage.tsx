@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { isAuthenticated } from "../lib/api-config";
-import { createNoteContent, getNoteById, getNoteContentByNoteId, patchNoteContent } from "../lib/api";
+import { getNoteById, patchNote } from "../lib/api";
 import type { Note } from "../lib/api/types.gen";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { Logo } from "@/components/ui/logo";
@@ -15,6 +15,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { ModeToggle } from "@/components/mode-toggle";
 
 export default function NoteEditorPage() {
   const { id: noteId } = useParams<{ id: string }>();
@@ -57,22 +58,10 @@ export default function NoteEditorPage() {
         setNote(noteData);
         setTitle(noteData.title);
 
-        // Load markdown content
-        const contentResponse = await getNoteContentByNoteId({
-          path: { note_id: noteId },
-        });
 
-        if (contentResponse.data?.data) {
-          const contentData = contentResponse.data.data as any;
-          const loadedContent = contentData.content || "";
-
-          contentRef.current = loadedContent;
-          setContent(loadedContent);
-        } else if (contentResponse.response.status == 404) {
-          await createNoteContent({ "body": { content: "", note_id: noteData.id } })
-          contentRef.current = "";
-          setContent("");
-        }
+        const contentData = noteData.content;
+        contentRef.current = contentData;
+        setContent(contentData);
       } catch (err) {
         console.error("Failed to load note:", err);
         setError("Failed to load note");
@@ -99,14 +88,13 @@ export default function NoteEditorPage() {
     const contentToSave = contentRef.current;
 
     setIsSaving(true);
-    console.log("HIII")
 
     try {
-      await patchNoteContent({
+      await patchNote({
+        path: { note_id: noteId },
         body: {
           content: contentToSave,
-          id: note.id,
-          version: 1,
+          version: "1",
         },
       });
 
@@ -197,6 +185,7 @@ export default function NoteEditorPage() {
               ) : null}
             </div>
 
+            <ModeToggle />
             <Button
               variant="ghost"
               size="icon-sm"

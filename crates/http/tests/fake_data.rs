@@ -114,36 +114,25 @@ pub mod refresh_token {
 pub mod note {
     use super::*;
 
-    pub fn model(id: Uuid, user_id: Uuid, title: impl Into<String>) -> entities::note::Model {
+    pub fn model(
+        id: Uuid,
+        user_id: Uuid,
+        title: impl Into<String>,
+        content: impl Into<String>,
+    ) -> entities::note::Model {
         let t = title.into();
         let ts = now();
         entities::note::Model {
             id,
+            version: "1".to_string(),
             title: t,
             user_id,
+            content: content.into(),
             created_at: ts,
             updated_at: ts,
             deleted_at: None,
             archived: false,
             pinned: false,
-        }
-    }
-}
-
-pub mod note_content {
-    use super::*;
-
-    pub fn model_text(
-        id: Uuid,
-        note_id: Uuid,
-        version: i32,
-        text: String,
-    ) -> entities::note_content::Model {
-        entities::note_content::Model {
-            id,
-            note_id,
-            version,
-            content: text,
         }
     }
 }

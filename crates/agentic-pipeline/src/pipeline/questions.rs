@@ -1,10 +1,7 @@
 use futures::future::join_all;
 use rig::agent::Agent;
 
-use crate::{
-    error::PipelineError,
-    pipeline::models::{ExtractedConcept, QuestionedExtractedConcept},
-};
+use crate::{error::PipelineError, pipeline::models::ExtractedConcept};
 
 use super::{
     config::{MAX_AGENT_RETRIES, MAX_CONCURRENT_QUESTION_REQUESTS, RUN_AGENTS_IN_PARALLEL},
@@ -13,12 +10,12 @@ use super::{
 
 pub(super) async fn generate_questions(
     agent: &Agent,
-    extracted_concepts: Vec<ExtractedConcept>,
-) -> Result<Vec<QuestionedExtractedConcept>, PipelineError> {
-    let mut out: Vec<QuestionedExtractedConcept> = Vec::new();
+    extracted_concepts: &Vec<ExtractedConcept>,
+) -> Result<Vec<SectionQuestions>, PipelineError> {
+    let mut out: Vec<SectionQuestions> = Vec::new();
     if RUN_AGENTS_IN_PARALLEL {
         for chunk in extracted_concepts
-            .into_iter()
+            .iter()
             .collect::<Vec<_>>()
             .chunks(MAX_CONCURRENT_QUESTION_REQUESTS)
         {
@@ -34,7 +31,7 @@ pub(super) async fn generate_questions(
             }
         }
     } else {
-        for node in extracted_concepts.into_iter() {
+        for node in extracted_concepts {
             out.push(process_node_questions(agent, node).await?);
         }
     }
@@ -44,8 +41,8 @@ pub(super) async fn generate_questions(
 
 async fn process_node_questions(
     agent: &Agent,
-    node: ExtractedConcept,
-) -> Result<QuestionedExtractedConcept, PipelineError> {
+    node: &ExtractedConcept,
+) -> Result<SectionQuestions, PipelineError> {
     let prompt = format!(
         r#"
             Generate study questions for the following section.
@@ -65,8 +62,5 @@ async fn process_node_questions(
         .await
         .map_err(|error| PipelineError::QuestionAgent(error.to_string()))?;
 
-    Ok(QuestionedExtractedConcept {
-        extracted_concept: node,
-        section_question: response.output,
-    })
+    Ok(response.output)
 }

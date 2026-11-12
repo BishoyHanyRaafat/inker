@@ -21,8 +21,8 @@ async fn test_get_notes_returns_notes_for_user() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
 
-    let n1 = fake_data::note::model(Uuid::new_v4(), user_id, "first");
-    let n2 = fake_data::note::model(Uuid::new_v4(), user_id, "second");
+    let n1 = fake_data::note::model(Uuid::new_v4(), user_id, "first", "Content");
+    let n2 = fake_data::note::model(Uuid::new_v4(), user_id, "second", "content");
 
     let db = MockDbBuilder::new()
         .with_query_results::<entities::note::Model>(vec![vec![n1.clone(), n2.clone()]])
@@ -111,7 +111,7 @@ async fn test_create_note_success_returns_201() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
 
-    let inserted = fake_data::note::model(Uuid::new_v4(), user_id, "created");
+    let inserted = fake_data::note::model(Uuid::new_v4(), user_id, "created", "content");
 
     // ActiveModel::insert will require a mock query result (RETURNING ...)
     let db = MockDbBuilder::new()

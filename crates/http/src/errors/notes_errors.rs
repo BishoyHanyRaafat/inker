@@ -15,7 +15,7 @@ pub enum NotesError {
     NoteContentTooLarge(usize),
 
     #[error("Invalid version")]
-    InvalidVersion(i32),
+    InvalidVersion(String),
 }
 
 impl AppErrorTrait for NotesError {

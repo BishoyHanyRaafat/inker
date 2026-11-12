@@ -134,6 +134,7 @@ fn decode_claims_from_token(token: &str) -> Result<Claims, AppError> {
 /// - HttpOnly cookie `access_token` (browser clients)
 ///
 /// NOTE: This extractor is only meant for WebSocket endpoints.
+#[allow(dead_code)]
 pub struct WsClaims(pub Claims);
 
 impl<S> FromRequestParts<S> for WsClaims

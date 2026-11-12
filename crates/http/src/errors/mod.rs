@@ -34,7 +34,7 @@ macro_rules! impl_into_response {
     };
 }
 
-impl_into_response!(BaseError, AuthError, NotesError);
+impl_into_response!(BaseError, AuthError, NotesError, YoutubeError);
 
 pub type AppError = ApiResponse<()>;
 

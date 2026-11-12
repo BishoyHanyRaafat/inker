@@ -5,11 +5,12 @@ use crate::routes::auth::models::{
     Auth, LoginUser, ProviderPath, ProviderQuery, SeededUser, Token,
 };
 use crate::routes::auth::provider;
-use crate::routes::interactive::{
-    events::YouTubeStreamEventUpdate, events::YouTubeStreamResponse, yt_websocket,
-};
-use crate::routes::notes::models::{PatchNoteContent, SeededNote, SeededNoteContent};
+use crate::routes::notes::models::{PatchedNote, SeededNote};
 use crate::routes::notes::notes_handler;
+use crate::routes::yt_material::models::{
+    ScheduledQuestion, YouTubeQuestionsRequest, YouTubeQuestionsResponse,
+};
+use crate::routes::yt_material::routes;
 use entities::sea_orm_active_enums::OauthProvider;
 use utoipa::OpenApi;
 
@@ -22,19 +23,17 @@ use utoipa::OpenApi;
         provider::provider_handler,
         notes_handler::get_notes,
         notes_handler::get_note_by_id,
-        notes_handler::get_note_content_by_note_id,
-        notes_handler::get_note_content_by_id,
         notes_handler::create_note,
-        notes_handler::create_note_content,
-        notes_handler::patch_note_content,
-        yt_websocket::ws_handler,
+        notes_handler::patch_note,
+        routes::yt_question_handler,
+        routes::yt_summary_handler
     ),
     components(schemas(
         ApiResponse<Auth>,
         ApiResponse<String>,
         ApiResponse<Vec<entities::note::Model>>,
         ApiResponse<entities::note::Model>,
-        ApiResponse<entities::note_content::Model>,
+        PatchedNote,
         Auth,
         Token,
         SeededUser,
@@ -44,10 +43,9 @@ use utoipa::OpenApi;
         OauthProvider,
         entities::note::Model,
         SeededNote,
-        SeededNoteContent,
-        PatchNoteContent,
-        YouTubeStreamResponse,
-        YouTubeStreamEventUpdate
+        YouTubeQuestionsRequest,
+        YouTubeQuestionsResponse,
+        ScheduledQuestion
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

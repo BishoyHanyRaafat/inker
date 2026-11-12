@@ -53,7 +53,7 @@ export function Sidebar({ className }: SidebarProps) {
     setIsCreating(true);
     try {
       const response = await createNote({
-        body: { title: "Untitled" },
+        body: { title: "Untitled", content: "" },
       });
       if (response.data?.data) {
         setNotes([response.data.data, ...notes]);

@@ -1,68 +1,128 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/ui/logo";
+
 import { clearTokens, isAuthenticated } from "../lib/api-config";
 import { cn } from "../lib/utils";
+
 import type {
   ClozeQuestion,
   FlashCardQuestion,
   OpenEndedQuestion,
-  YouTubeStreamResponse,
 } from "../lib/api/types.gen";
-import { ArrowLeft, LogOut, Pause, Play, RotateCcw } from "lucide-react";
 
-function extractYouTubeId(input: string): string | null {
-  const raw = input.trim();
-  if (!raw) return null;
+import { ArrowLeft, LogOut, Play, RotateCcw } from "lucide-react";
+import { ytQuestionHandler, ytSummaryHandler } from "@/lib/api";
 
-  if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
-  const watchMatch = raw.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-  if (watchMatch?.[1]) return watchMatch[1];
-  const shortMatch = raw.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-  if (shortMatch?.[1]) return shortMatch[1];
-  const embedMatch = raw.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
-  if (embedMatch?.[1]) return embedMatch[1];
-  return null;
-}
+type SectionQuestions = {
+  cloze: ClozeQuestion[];
+  flashcards: FlashCardQuestion[];
+  open_ended: OpenEndedQuestion[];
+};
 
-function normalizeYouTubeUrl(input: string): string | null {
-  const raw = input.trim();
-  if (!raw) return null;
-  const id = extractYouTubeId(raw);
-  if (id) return `https://www.youtube.com/watch?v=${id}`;
-  if (/^https?:\/\//.test(raw)) return raw;
-  return null;
-}
+type ScheduledQuestion = {
+  trigger_at: number;
+  questions: SectionQuestions;
+};
 
-function toWsBaseUrl(httpBase: string): string {
-  if (httpBase.startsWith("https://")) return httpBase.replace("https://", "wss://");
-  if (httpBase.startsWith("http://")) return httpBase.replace("http://", "ws://");
-  return httpBase;
-}
-
-declare global {
-  interface Window {
-    YT?: any;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
 type Question =
   | { type: "cloze"; data: ClozeQuestion; id: string }
   | { type: "flashcard"; data: FlashCardQuestion; id: string }
   | { type: "open_ended"; data: OpenEndedQuestion; id: string };
 
+type PlaybackStatus = "idle" | "generating" | "playing" | "waiting";
+
+declare global {
+  interface Window {
+    YT?: {
+      Player: new (
+        element: string | HTMLElement,
+        options: {
+          videoId: string;
+          playerVars?: Record<string, unknown>;
+          events?: {
+            onReady?: (event: any) => void;
+            onStateChange?: (event: any) => void;
+            onError?: (event: any) => void;
+          };
+        }
+      ) => any;
+    };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+function extractYouTubeId(input: string): string | null {
+  const raw = input.trim();
+
+  if (!raw) return null;
+
+  if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) {
+    return raw;
+  }
+
+  const watchMatch = raw.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (watchMatch?.[1]) return watchMatch[1];
+
+  const shortMatch = raw.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (shortMatch?.[1]) return shortMatch[1];
+
+  const embedMatch = raw.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
+  if (embedMatch?.[1]) return embedMatch[1];
+
+  return null;
+}
+
+function normalizeYouTubeUrl(input: string): string | null {
+  const id = extractYouTubeId(input);
+
+  if (!id) return null;
+
+  return `https://www.youtube.com/watch?v=${id}`;
+}
+
+function flattenQuestions(questions: SectionQuestions): Question[] {
+  return [
+    ...questions.cloze.map((data) => ({
+      id: crypto.randomUUID(),
+      type: "cloze" as const,
+      data,
+    })),
+    ...questions.flashcards.map((data) => ({
+      id: crypto.randomUUID(),
+      type: "flashcard" as const,
+      data,
+    })),
+    ...questions.open_ended.map((data) => ({
+      id: crypto.randomUUID(),
+      type: "open_ended" as const,
+      data,
+    })),
+  ];
+}
+
 export default function InteractiveYouTubeFocusPage() {
   const navigate = useNavigate();
 
-  const [youtubeInput, setYoutubeInput] = useState("");
-  const [wsStatus, setWsStatus] = useState<
-    "disconnected" | "connecting" | "connected"
-  >("disconnected");
+  const [youtubeInput, setYoutubeInput] = useState(
+    import.meta.env.DEV
+      ? "https://www.youtube.com/watch?v=K5KVEU3aaeQ"
+      : ""
+  );
+
+  const [status, setStatus] = useState<PlaybackStatus>("idle");
+  const [playerReady, setPlayerReady] = useState(false);
+
   const [lastError, setLastError] = useState<string | null>(null);
   const [questionsCount, setQuestionCount] = useState(0);
 
@@ -70,15 +130,24 @@ export default function InteractiveYouTubeFocusPage() {
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
   const [reveal, setReveal] = useState(false);
   const [attempt, setAttempt] = useState("");
+  const [summaryGenerating, setSummaryGenerating] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  const wsRef = useRef<WebSocket | null>(null);
   const playerRef = useRef<any>(null);
-  const syncTimerRef = useRef<number | null>(null);
-  const isPlayingRef = useRef(false);
-  const lastTimeSampleRef = useRef<{ t: number; ts: number } | null>(null);
-  const bufferingAnchorRef = useRef<number | null>(null);
 
-  const videoId = useMemo(() => extractYouTubeId(youtubeInput), [youtubeInput]);
+  // All questions returned by the backend, ordered by trigger_at.
+  const scheduledQuestionsRef = useRef<ScheduledQuestion[]>([]);
+
+  // Index of the next scheduled question group.
+  const nextScheduledIdxRef = useRef(0);
+
+  const playbackTimerRef = useRef<number | null>(null);
+
+  const videoId = useMemo(
+    () => extractYouTubeId(youtubeInput),
+    [youtubeInput]
+  );
+
   const normalizedYoutubeUrl = useMemo(
     () => normalizeYouTubeUrl(youtubeInput),
     [youtubeInput]
@@ -86,30 +155,33 @@ export default function InteractiveYouTubeFocusPage() {
 
   const activeQuestion = questionQueue[activeQuestionIdx] ?? null;
 
+  const canStart = Boolean(normalizedYoutubeUrl && playerReady);
+  const hasQuestions = questionQueue.length > 0;
+
+  // Authentication.
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate("/login");
-      return;
     }
   }, [navigate]);
 
+  // Initialize the YouTube IFrame API and player.
   useEffect(() => {
-    if (!videoId) return;
-
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-inker="yt-iframe-api"]'
-    );
-    if (!existing) {
-      const script = document.createElement("script");
-      script.src = "https://www.youtube.com/iframe_api";
-      script.async = true;
-      script.dataset.inker = "yt-iframe-api";
-      document.body.appendChild(script);
+    if (!videoId) {
+      setPlayerReady(false);
+      return;
     }
 
+    let cancelled = false;
+
     const createPlayer = () => {
-      if (!window.YT?.Player) return;
-      if (playerRef.current) return;
+      if (cancelled || !window.YT?.Player) return;
+
+      // Reuse the existing player when the video input changes.
+      if (playerRef.current) {
+        playerRef.current.cueVideoById(videoId);
+        return;
+      }
 
       playerRef.current = new window.YT.Player("yt-player", {
         videoId,
@@ -120,42 +192,24 @@ export default function InteractiveYouTubeFocusPage() {
           origin: window.location.origin,
         },
         events: {
-          onStateChange: (e: any) => {
+          onReady: () => {
+            if (!cancelled) {
+              setPlayerReady(true);
+            }
+          },
+
+          onStateChange: (event: any) => {
             // 1 = playing, 2 = paused, 3 = buffering.
-            // We use this for backend state + better seek detection.
-            if (e?.data === 1) {
-              isPlayingRef.current = true;
-              sendEvent({ type: "resumed" });
-
-              // If we were buffering and we land on a different timestamp, it was a seek.
-              try {
-                const t = playerRef.current?.getCurrentTime?.();
-                if (typeof t === "number" && Number.isFinite(t)) {
-                  const anchor = bufferingAnchorRef.current;
-                  if (typeof anchor === "number" && Math.abs(t - anchor) > 1.5) {
-                    sendEvent({ type: "seeked", data: { position: t } });
-                  }
-                }
-              } catch { }
-
-              bufferingAnchorRef.current = null;
+            if (event.data === 1) {
+              setStatus("playing");
+            } else if (event.data === 2 || event.data === 3) {
+              setStatus("waiting");
             }
-            if (e?.data === 2) {
-              isPlayingRef.current = false;
-              sendEvent({ type: "paused" });
-            }
-            if (e?.data === 3) {
-              isPlayingRef.current = false;
-              sendEvent({ type: "paused" });
+          },
 
-              try {
-                const t = playerRef.current?.getCurrentTime?.();
-
-                if (typeof t === "number" && Number.isFinite(t)) {
-                  bufferingAnchorRef.current = t;
-                }
-              } catch { }
-            }
+          onError: (event: any) => {
+            console.error("YouTube player error:", event.data);
+            setLastError("Unable to load this YouTube video.");
           },
         },
       });
@@ -163,166 +217,189 @@ export default function InteractiveYouTubeFocusPage() {
 
     if (window.YT?.Player) {
       createPlayer();
-      return;
+    } else {
+      const existingScript = document.querySelector<HTMLScriptElement>(
+        'script[data-inker="yt-iframe-api"]'
+      );
+
+      if (!existingScript) {
+        const script = document.createElement("script");
+
+        script.src = "https://www.youtube.com/iframe_api";
+        script.async = true;
+        script.dataset.inker = "yt-iframe-api";
+
+        document.body.appendChild(script);
+      }
+
+      const previousCallback = window.onYouTubeIframeAPIReady;
+
+      window.onYouTubeIframeAPIReady = () => {
+        previousCallback?.();
+        createPlayer();
+      };
     }
 
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      prev?.();
-      createPlayer();
+    return () => {
+      cancelled = true;
     };
   }, [videoId]);
 
+  // Poll the player's actual playback position and trigger scheduled questions.
   useEffect(() => {
-    return () => {
-      wsRef.current?.close();
-      wsRef.current = null;
-      if (syncTimerRef.current) {
-        window.clearInterval(syncTimerRef.current);
-        syncTimerRef.current = null;
+    playbackTimerRef.current = window.setInterval(() => {
+      const player = playerRef.current;
+
+      // Only process scheduled questions while the video is playing.
+      if (!player || player.getPlayerState?.() !== 1) {
+        return;
       }
+
+      const scheduled = scheduledQuestionsRef.current;
+      const nextIdx = nextScheduledIdxRef.current;
+      const nextGroup = scheduled[nextIdx];
+
+      if (!nextGroup) {
+        return;
+      }
+
+      const currentTime = player.getCurrentTime();
+
+      if (currentTime < nextGroup.trigger_at) {
+        return;
+      }
+
+      // Consume this timestamp before pausing the player.
+      nextScheduledIdxRef.current++;
+
+      player.pauseVideo();
+
+      const flattenedQuestions = flattenQuestions(nextGroup.questions);
+
+      // No questions in this group: continue playback.
+      if (flattenedQuestions.length === 0) {
+        player.playVideo();
+        return;
+      }
+
+      setQuestionQueue(flattenedQuestions);
+      setActiveQuestionIdx(0);
+      setReveal(false);
+      setAttempt("");
+    }, 250);
+
+    return () => {
+      if (playbackTimerRef.current !== null) {
+        window.clearInterval(playbackTimerRef.current);
+        playbackTimerRef.current = null;
+      }
+
+      playerRef.current?.destroy?.();
+      playerRef.current = null;
     };
   }, []);
 
-  function wsUrl(): string | null {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    const wsBase = toWsBaseUrl(apiBase);
-    // Auth is sent via HttpOnly `access_token` cookie.
-    return `${wsBase}/api/v1/interactive/yt/ws`;
-  }
+  async function generateSummary() {
+    if (!normalizedYoutubeUrl) {
+      setSummaryError("Please enter a valid YouTube URL.");
+      return;
+    }
 
-  function sendEvent(evt: unknown) {
-    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
-    wsRef.current.send(JSON.stringify(evt));
-  }
+    setSummaryError(null);
+    setSummaryGenerating(true);
 
-  function connectAndStart() {
+    try {
+      const data = await ytSummaryHandler({ body: { url: normalizedYoutubeUrl } })
+
+      // Adjust this path to match your ApiResponse structure.
+      navigate(`/notes/${data.data.data.id}`);
+    } catch (error) {
+      setSummaryError(
+        error instanceof Error ? error.message : "Something went wrong."
+      );
+    } finally {
+      setSummaryGenerating(false);
+    }
+  }
+  async function connectAndStart() {
     setLastError(null);
     setReveal(false);
     setAttempt("");
 
-    const urlForBackend = normalizedYoutubeUrl;
-    if (!urlForBackend) {
-      setLastError("Please paste a valid YouTube URL (or video id).");
+    setQuestionQueue([]);
+    setActiveQuestionIdx(0);
+    setQuestionCount(0);
+
+    scheduledQuestionsRef.current = [];
+    nextScheduledIdxRef.current = 0;
+
+    if (!normalizedYoutubeUrl) {
+      setLastError("Please paste a valid YouTube URL or video ID.");
       return;
     }
 
-    const url = wsUrl();
-    if (!url) {
-      setLastError("Missing WebSocket URL.");
+    if (!playerReady || !playerRef.current) {
+      setLastError("The YouTube player is not ready yet.");
       return;
     }
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      sendEvent({ type: "start", data: { id: urlForBackend } });
-      return;
-    }
+    setStatus("generating");
 
-    setWsStatus("connecting");
-    // We negotiate a stable protocol name. Auth happens via HttpOnly cookie.
-    const ws = new WebSocket(url, ["inker"]);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setWsStatus("connected");
-      sendEvent({ type: "start", data: { id: urlForBackend } });
-
-
-      if (!syncTimerRef.current) {
-        // Detect real seeks / large jumps (scrubbing, keyboard seeking, jumping while paused).
-        // We do NOT send position updates periodically anymore.
-        const DRIFT_THRESHOLD_SECS = 1.5;
-        syncTimerRef.current = window.setInterval(() => {
-          try {
-            const t = playerRef.current?.getCurrentTime?.();
-            if (typeof t !== "number" || !Number.isFinite(t)) return;
-
-            const now = Date.now();
-            const prev = lastTimeSampleRef.current;
-            lastTimeSampleRef.current = { t, ts: now };
-
-            // Need a previous sample to compare.
-            if (!prev) return;
-
-            let rate = 1;
-            try {
-              const r = playerRef.current?.getPlaybackRate?.();
-              if (typeof r === "number" && Number.isFinite(r) && r > 0) rate = r;
-            } catch { }
-
-            // If playing, expect time to advance. If paused/buffering, expect no advance.
-            const expectedDelta = isPlayingRef.current
-              ? ((now - prev.ts) / 1000) * rate
-              : 0;
-
-            const actualDelta = t - prev.t;
-            const drift = Math.abs(actualDelta - expectedDelta);
-
-            // Seek = a jump that can't be explained by normal playback progression.
-            if (drift > DRIFT_THRESHOLD_SECS) {
-              sendEvent({ type: "seeked", data: { position: t } });
-            }
-          } catch { }
-        }, 1000);
-      }
-    };
-
-    ws.onclose = () => {
-      setWsStatus("disconnected");
-    };
-
-    ws.onerror = () => {
-      setLastError("WebSocket error. Check server logs and your auth token.");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(String(event.data)) as YouTubeStreamResponse;
-
-        switch (msg.type) {
-          case "ready": {
-            // The backend has finished generating the outline.
-            // Now it's safe to start playback.
-            playerRef.current?.playVideo?.();
-            break;
-          }
-
-          case "error": {
-            setLastError("Server error while processing the lecture.");
-            break;
-          }
-
-          case "question": {
-            console.log("question received:", msg.data);
-            const questions: Question[] = [
-              ...msg.data.cloze.map(data => ({ id: crypto.randomUUID(), type: "cloze" as const, data })),
-              ...msg.data.flashcards.map(data => ({ id: crypto.randomUUID(), type: "flashcard" as const, data })),
-              ...msg.data.open_ended.map(data => ({ id: crypto.randomUUID(), type: "open_ended" as const, data })),
-            ];;
-
-            setQuestionCount(questionsCount + questions.length)
-            setQuestionQueue(questions)
-            break;
-          }
+    try {
+      const res = await ytQuestionHandler({
+        body: {
+          url: normalizedYoutubeUrl,
         }
-      } catch (error) {
-        console.error("Invalid WebSocket message:", error);
-      }
-    };
-  }
+      });
+      const data = res.data
+      // Keep the backend's timestamp ordering.
+      scheduledQuestionsRef.current = data.questions;
+      nextScheduledIdxRef.current = 0;
 
-  function disconnect() {
-    wsRef.current?.close();
-    wsRef.current = null;
-    setWsStatus("disconnected");
+      const totalQuestions = data.questions.reduce((total, group) => {
+        return (
+          total +
+          group.questions.cloze.length +
+          group.questions.flashcards.length +
+          group.questions.open_ended.length
+        );
+      }, 0);
+
+      setQuestionCount(totalQuestions);
+
+      // Start from the beginning after generation finishes.
+      playerRef.current.seekTo(0, true);
+      playerRef.current.playVideo();
+
+      setStatus("playing");
+    } catch (error) {
+      console.error("Failed to generate questions:", error);
+
+      setStatus("idle");
+
+      setLastError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while generating questions."
+      );
+    }
   }
 
   function nextQuestion() {
     setReveal(false);
     setAttempt("");
-    setActiveQuestionIdx((idx) =>
-      Math.min(idx + 1, Math.max(0, questionQueue.length - 1))
-    );
+
+    if (activeQuestionIdx < questionQueue.length - 1) {
+      setActiveQuestionIdx((idx) => idx + 1);
+      return;
+    }
+
+    // Finished this timestamp's question group.
+    setQuestionQueue([]);
+    setActiveQuestionIdx(0);
+
+    // Resume playback until the next scheduled timestamp.
+    playerRef.current?.playVideo();
   }
 
   function restartQueue() {
@@ -330,9 +407,6 @@ export default function InteractiveYouTubeFocusPage() {
     setAttempt("");
     setActiveQuestionIdx(0);
   }
-
-  const canStart = Boolean(normalizedYoutubeUrl);
-  const hasQuestions = questionQueue.length > 0;
 
   return (
     <div className="min-h-screen bg-background bg-gradient-hero">
@@ -347,21 +421,23 @@ export default function InteractiveYouTubeFocusPage() {
                 Back
               </Link>
             </Button>
+
             <Logo href="/dashboard" size="sm" />
           </div>
 
           <div className="flex items-center gap-2">
             <div className="text-xs text-muted-foreground hidden sm:block">
-              WS:{" "}
+              Status:{" "}
               <span
                 className={cn(
                   "font-medium",
-                  wsStatus === "connected" && "text-emerald-500",
-                  wsStatus === "connecting" && "text-amber-500",
-                  wsStatus === "disconnected" && "text-muted-foreground"
+                  status === "playing" && "text-emerald-500",
+                  status === "generating" && "text-amber-500",
+                  status === "waiting" && "text-blue-500",
+                  status === "idle" && "text-muted-foreground"
                 )}
               >
-                {wsStatus}
+                {status}
               </span>
             </div>
 
@@ -388,15 +464,20 @@ export default function InteractiveYouTubeFocusPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
                 <span>Focus Lecture</span>
+
                 <div className="text-xs text-muted-foreground">
-                  Questions: <span className="font-medium">{questionsCount}</span>
+                  Questions:{" "}
+                  <span className="font-medium">{questionsCount}</span>
                 </div>
               </CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <div className="text-sm font-medium">YouTube URL / Video ID</div>
+                <div className="text-sm font-medium">
+                  YouTube URL / Video ID
+                </div>
+
                 <Input
                   value={youtubeInput}
                   onChange={(e) => setYoutubeInput(e.target.value)}
@@ -412,42 +493,26 @@ export default function InteractiveYouTubeFocusPage() {
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={connectAndStart}
-                  disabled={!canStart || wsStatus === "connecting"}
+                  disabled={!canStart || status === "generating"}
                   className="h-11"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Start (Questions only)
+                  {status === "generating" ? "Generating..." : "Start"}
                 </Button>
 
                 <Button
                   variant="outline"
-                  onClick={() => sendEvent({ type: "paused" })}
-                  disabled={wsStatus !== "connected"}
+                  onClick={generateSummary}
+                  disabled={!normalizedYoutubeUrl || summaryGenerating}
                   className="h-11"
                 >
-                  <Pause className="w-4 h-4 mr-2" />
-                  Pause
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => sendEvent({ type: "resumed" })}
-                  disabled={wsStatus !== "connected"}
-                  className="h-11"
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Resume
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={disconnect}
-                  disabled={wsStatus === "disconnected"}
-                  className="h-11"
-                >
-                  Disconnect
+                  {summaryGenerating ? "Generating Summary..." : "Generate Summary"}
                 </Button>
               </div>
+
+              {summaryError && (
+                <div className="text-sm text-destructive">{summaryError}</div>
+              )}
 
               <div className="rounded-xl overflow-hidden border border-border/50 bg-black/40">
                 {videoId ? (
@@ -456,15 +521,15 @@ export default function InteractiveYouTubeFocusPage() {
                   </div>
                 ) : (
                   <div className="aspect-video flex items-center justify-center text-sm text-muted-foreground">
-                    Paste a YouTube link to show the player (optional)
+                    Paste a YouTube link to show the player.
                   </div>
                 )}
               </div>
 
               <div className="text-xs text-muted-foreground">
                 This mode intentionally shows{" "}
-                <span className="font-medium">questions first</span>. We’ll use
-                summaries at the end of the lecture.
+                <span className="font-medium">questions first</span>. Questions
+                appear when their scheduled timestamps are reached.
               </div>
             </CardContent>
           </Card>
@@ -491,8 +556,11 @@ export default function InteractiveYouTubeFocusPage() {
             <CardContent className="space-y-4">
               {!activeQuestion ? (
                 <div className="rounded-xl border border-dashed border-border/60 bg-background/40 p-6 text-sm text-muted-foreground">
-                  Waiting for the first chunk… once the server generates
-                  questions, they’ll appear here one-by-one.
+                  {status === "generating"
+                    ? "Generating questions..."
+                    : status === "playing"
+                      ? "Watching lecture. Questions will appear at scheduled timestamps."
+                      : "Start a YouTube lecture to generate questions."}
                 </div>
               ) : (
                 <>
@@ -552,7 +620,7 @@ export default function InteractiveYouTubeFocusPage() {
                     <div className="mt-4 flex flex-wrap gap-3">
                       <Button
                         variant={reveal ? "outline" : "default"}
-                        onClick={() => setReveal((v) => !v)}
+                        onClick={() => setReveal((value) => !value)}
                         className="h-11"
                       >
                         {reveal ? "Hide answer" : "Reveal answer"}
@@ -561,12 +629,11 @@ export default function InteractiveYouTubeFocusPage() {
                       <Button
                         variant="outline"
                         onClick={nextQuestion}
-                        disabled={
-                          activeQuestionIdx >= questionQueue.length - 1
-                        }
                         className="h-11"
                       >
-                        Next
+                        {activeQuestionIdx < questionQueue.length - 1
+                          ? "Next"
+                          : "Continue video"}
                       </Button>
                     </div>
                   </div>
@@ -583,14 +650,14 @@ export default function InteractiveYouTubeFocusPage() {
                   <div className="space-y-2 max-h-40 overflow-auto pr-2">
                     {questionQueue
                       .slice(activeQuestionIdx + 1, activeQuestionIdx + 6)
-                      .map((q) => (
+                      .map((question) => (
                         <div
-                          key={q.id}
+                          key={question.id}
                           className="text-sm text-muted-foreground truncate"
                         >
-                          {q.type === "cloze"
-                            ? q.data.text
-                            : q.data.question}
+                          {question.type === "cloze"
+                            ? question.data.text
+                            : question.data.question}
                         </div>
                       ))}
                   </div>
@@ -603,5 +670,3 @@ export default function InteractiveYouTubeFocusPage() {
     </div>
   );
 }
-
-

@@ -18,7 +18,7 @@ pub struct ApiResponse<T> {
     #[schema(example = "https://example.com/redirect")]
     redirect_to: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<T>,
+    pub data: Option<T>,
     #[serde(skip_serializing_if = "skip_in_production")]
     debug: Option<String>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
@@ -61,6 +61,11 @@ impl<T> ApiResponse<T> {
 
     pub fn with_debug(mut self, debug: impl Debug) -> Self {
         self.debug = Some(format!("{:?}", debug));
+        self
+    }
+
+    pub fn with_message(mut self, message: String) -> Self {
+        self.message = message;
         self
     }
 

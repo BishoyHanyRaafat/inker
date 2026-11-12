@@ -74,7 +74,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Claims {
     pub user_type: UserType,
     pub username: String,

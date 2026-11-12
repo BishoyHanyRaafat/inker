@@ -1,15 +1,24 @@
 use crate::{
     error::PipelineError,
-    prompts::{EXTRACTION_SYSTEM_PROMPT, QUESTION_SYSTEM_PROMPT},
-    tools::GetTranscriptSection,
+    prompts::{
+        EXTRACTION_SYSTEM_PROMPT, QUESTION_SYSTEM_PROMPT, SECTION_WRITER_PROMPT,
+        SUMMARY_PLANNER_PROMPT,
+    },
+    tools::{GetTranscriptSection, get_concept::GetConceptSection},
 };
-use rig::{agent::Agent, prelude::*, providers::gemini::Gemini};
+use rig::{
+    agent::Agent,
+    prelude::*,
+    providers::gemini::{Gemini, completion::GenerateContent},
+};
 
 use super::config::MODEL_NAME;
 
 pub(super) struct PipelineAgents {
     pub extraction: Agent,
     pub question: Agent,
+    pub material_note: Agent,
+    pub model: Model<GenerateContent>,
 }
 
 impl PipelineAgents {
@@ -25,8 +34,14 @@ impl PipelineAgents {
             .tool(batch_tool.clone())
             .build();
 
-        let question = AgentBuilder::new(model)
+        let question = AgentBuilder::new(model.clone())
             .preamble(QUESTION_SYSTEM_PROMPT)
+            .temperature(0.3)
+            .default_max_turns(2)
+            .build();
+
+        let material_note = AgentBuilder::new(model.clone())
+            .preamble(SECTION_WRITER_PROMPT)
             .temperature(0.3)
             .default_max_turns(2)
             .build();
@@ -34,6 +49,16 @@ impl PipelineAgents {
         Ok(Self {
             extraction,
             question,
+            material_note,
+            model,
         })
+    }
+    pub fn get_planner_builder(&self, tool: GetConceptSection) -> Agent {
+        AgentBuilder::new(self.model.clone())
+            .preamble(SUMMARY_PLANNER_PROMPT)
+            .temperature(0.3)
+            .default_max_turns(2)
+            .tool(tool)
+            .build()
     }
 }

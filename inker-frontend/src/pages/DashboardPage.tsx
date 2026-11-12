@@ -19,6 +19,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+import { ModeToggle } from "@/components/mode-toggle";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -58,7 +59,7 @@ export default function DashboardPage() {
     setIsCreating(true);
     try {
       const response = await createNote({
-        body: { title: newNoteTitle },
+        body: { title: newNoteTitle, content: "" },
       });
 
       if (response.data?.data) {
@@ -99,6 +100,7 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <Logo href="/dashboard" size="sm" />
           <div className="flex items-center gap-3">
+            <ModeToggle />
             <Button
               variant="ghost"
               size="sm"

@@ -23,9 +23,9 @@ pub enum PipelineError {
     #[error("Outline agent execution failed: {0}")]
     OutlineAgent(String),
 
-    #[error("Merge agent execution failed: {0}")]
-    MergeAgent(String),
-
     #[error("Question agent execution failed: {0}")]
     QuestionAgent(String),
+
+    #[error("Planner agent execution failed: {0}")]
+    PlannerAgent(String),
 }

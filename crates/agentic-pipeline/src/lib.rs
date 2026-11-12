@@ -5,4 +5,4 @@ pub mod tokenizer;
 pub mod tools;
 
 pub use error::PipelineError;
-pub use pipeline::{AgenticPipeline, QuestionedExtractedConcept};
+pub use pipeline::{AgenticPipeline, SectionQuestions};

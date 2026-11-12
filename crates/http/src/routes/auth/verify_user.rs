@@ -41,6 +41,7 @@ pub trait TokenGeneratable {
     ) -> Result<(Auth, refresh_tokens::ActiveModel), AppError>;
 }
 
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait DatabaseInsertable: Sized + Send + 'static {
     async fn insert_refresh_token(

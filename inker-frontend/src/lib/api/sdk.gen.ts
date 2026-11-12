@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateNoteContentData, CreateNoteContentErrors, CreateNoteContentResponses, CreateNoteData, CreateNoteErrors, CreateNoteResponses, GetNoteByIdData, GetNoteByIdErrors, GetNoteByIdResponses, GetNoteContentByIdData, GetNoteContentByIdErrors, GetNoteContentByIdResponses, GetNoteContentByNoteIdData, GetNoteContentByNoteIdErrors, GetNoteContentByNoteIdResponses, GetNotesData, GetNotesErrors, GetNotesResponses, LoginData, LoginErrors, LoginResponses, PatchNoteContentData, PatchNoteContentErrors, PatchNoteContentResponses, ProviderHandlerData, ProviderHandlerErrors, RefreshtokenData, RefreshtokenErrors, RefreshtokenResponses, SignupData, SignupErrors, SignupResponses, WsHandlerData, WsHandlerResponses } from './types.gen';
+import type { CreateNoteData, CreateNoteErrors, CreateNoteResponses, GetNoteByIdData, GetNoteByIdErrors, GetNoteByIdResponses, GetNotesData, GetNotesErrors, GetNotesResponses, LoginData, LoginErrors, LoginResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, ProviderHandlerData, ProviderHandlerErrors, RefreshtokenData, RefreshtokenErrors, RefreshtokenResponses, SignupData, SignupErrors, SignupResponses, YtQuestionHandlerData, YtQuestionHandlerErrors, YtQuestionHandlerResponses, YtSummaryHandlerData, YtSummaryHandlerErrors, YtSummaryHandlerResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
   /**
@@ -71,20 +71,6 @@ export const signup = <ThrowOnError extends boolean = false>(options: Options<Si
 });
 
 /**
- * WebSocket handler for YouTube stream processing.
- *
- * Timestamped outline nodes are scheduled at 80% of their section duration.
- */
-export const wsHandler = <ThrowOnError extends boolean = false>(options: Options<WsHandlerData, ThrowOnError>): RequestResult<WsHandlerResponses, unknown, ThrowOnError> => (options.client ?? client).get<WsHandlerResponses, unknown, ThrowOnError>({
-  url: '/api/v1/interactive/yt/ws',
-  ...options,
-  headers: {
-    'Content-Type': 'application/json',
-    ...options.headers
-  }
-});
-
-/**
  * Get all notes
  *
  * Retrieves all notes for the authenticated user.
@@ -104,37 +90,6 @@ export const createNote = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
- * Update the note content
- */
-export const patchNoteContent = <ThrowOnError extends boolean = false>(options: Options<PatchNoteContentData, ThrowOnError>): RequestResult<PatchNoteContentResponses, PatchNoteContentErrors, ThrowOnError> => (options.client ?? client).patch<PatchNoteContentResponses, PatchNoteContentErrors, ThrowOnError>({
-  url: '/api/v1/notes/content',
-  ...options,
-  headers: {
-    'Content-Type': 'application/json',
-    ...options.headers
-  }
-});
-
-/**
- * Create a new note content for a note
- */
-export const createNoteContent = <ThrowOnError extends boolean = false>(options: Options<CreateNoteContentData, ThrowOnError>): RequestResult<CreateNoteContentResponses, CreateNoteContentErrors, ThrowOnError> => (options.client ?? client).post<CreateNoteContentResponses, CreateNoteContentErrors, ThrowOnError>({
-  url: '/api/v1/notes/content',
-  ...options,
-  headers: {
-    'Content-Type': 'application/json',
-    ...options.headers
-  }
-});
-
-/**
- * Get note content by ID
- *
- * Retrieves a specific note content by its ID. The note content must belong to a note owned by the authenticated user.
- */
-export const getNoteContentById = <ThrowOnError extends boolean = false>(options: Options<GetNoteContentByIdData, ThrowOnError>): RequestResult<GetNoteContentByIdResponses, GetNoteContentByIdErrors, ThrowOnError> => (options.client ?? client).get<GetNoteContentByIdResponses, GetNoteContentByIdErrors, ThrowOnError>({ url: '/api/v1/notes/content/{content_id}', ...options });
-
-/**
  * Get note by ID
  *
  * Retrieves a specific note by its ID for the authenticated user.
@@ -142,8 +97,31 @@ export const getNoteContentById = <ThrowOnError extends boolean = false>(options
 export const getNoteById = <ThrowOnError extends boolean = false>(options: Options<GetNoteByIdData, ThrowOnError>): RequestResult<GetNoteByIdResponses, GetNoteByIdErrors, ThrowOnError> => (options.client ?? client).get<GetNoteByIdResponses, GetNoteByIdErrors, ThrowOnError>({ url: '/api/v1/notes/{note_id}', ...options });
 
 /**
- * Get Content by note ID
- *
- * Retrieves the note content for a specific note that belongs to the authenticated user.
+ * Update the note
  */
-export const getNoteContentByNoteId = <ThrowOnError extends boolean = false>(options: Options<GetNoteContentByNoteIdData, ThrowOnError>): RequestResult<GetNoteContentByNoteIdResponses, GetNoteContentByNoteIdErrors, ThrowOnError> => (options.client ?? client).get<GetNoteContentByNoteIdResponses, GetNoteContentByNoteIdErrors, ThrowOnError>({ url: '/api/v1/notes/{note_id}/content', ...options });
+export const patchNote = <ThrowOnError extends boolean = false>(options: Options<PatchNoteData, ThrowOnError>): RequestResult<PatchNoteResponses, PatchNoteErrors, ThrowOnError> => (options.client ?? client).patch<PatchNoteResponses, PatchNoteErrors, ThrowOnError>({
+  url: '/api/v1/notes/{note_id}',
+  ...options,
+  headers: {
+    'Content-Type': 'application/json',
+    ...options.headers
+  }
+});
+
+export const ytQuestionHandler = <ThrowOnError extends boolean = false>(options: Options<YtQuestionHandlerData, ThrowOnError>): RequestResult<YtQuestionHandlerResponses, YtQuestionHandlerErrors, ThrowOnError> => (options.client ?? client).post<YtQuestionHandlerResponses, YtQuestionHandlerErrors, ThrowOnError>({
+  url: '/api/v1/yt/questions',
+  ...options,
+  headers: {
+    'Content-Type': 'application/json',
+    ...options.headers
+  }
+});
+
+export const ytSummaryHandler = <ThrowOnError extends boolean = false>(options: Options<YtSummaryHandlerData, ThrowOnError>): RequestResult<YtSummaryHandlerResponses, YtSummaryHandlerErrors, ThrowOnError> => (options.client ?? client).post<YtSummaryHandlerResponses, YtSummaryHandlerErrors, ThrowOnError>({
+  url: '/api/v1/yt/summary',
+  ...options,
+  headers: {
+    'Content-Type': 'application/json',
+    ...options.headers
+  }
+});

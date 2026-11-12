@@ -26,6 +26,7 @@ export type LoginUser = {
 
 export type Note = {
   archived: boolean;
+  content: string;
   created_at: string;
   deleted_at?: string | null;
   id: string;
@@ -33,13 +34,7 @@ export type Note = {
   title: string;
   updated_at: string;
   user_id: string;
-};
-
-export type NoteContent = {
-  content: string;
-  id: string;
-  note_id: string;
-  version: number;
+  version: string;
 };
 
 export type OauthProvider = 'google' | 'facebook' | 'twitter' | 'github';
@@ -49,13 +44,12 @@ export type OpenEndedQuestion = {
   question: string;
 };
 
-export type PatchNoteContent = {
-  content: string;
-  /**
-   * This can be either content id or the note id
-   */
-  id: string;
-  version?: number | null;
+export type PatchedNote = {
+  archived?: boolean | null;
+  content?: string | null;
+  pinned?: boolean | null;
+  title?: string | null;
+  version?: string | null;
 };
 
 export type ProviderPath = {
@@ -88,6 +82,7 @@ export type ResponseAuth = {
 export type ResponseNote = {
   data?: {
     archived: boolean;
+    content: string;
     created_at: string;
     deleted_at?: string | null;
     id: string;
@@ -95,46 +90,7 @@ export type ResponseNote = {
     title: string;
     updated_at: string;
     user_id: string;
-  };
-  debug?: string | null;
-  errors?: {
-    [key: string]: Array<string>;
-  };
-  message: string;
-  redirect_to?: string | null;
-};
-
-/**
- * Standard API Response
- */
-export type ResponseNoteContent = {
-  data?: {
-    content: string;
-    id: string;
-    note_id: string;
-    version: number;
-  };
-  debug?: string | null;
-  errors?: {
-    [key: string]: Array<string>;
-  };
-  message: string;
-  redirect_to?: string | null;
-};
-
-/**
- * Standard API Response
- */
-export type ResponseSeededNoteContent = {
-  data?: {
-    /**
-     * This is a markdown
-     *
-     * We can change it in the feature to use MDX to support more components
-     */
-    content: string;
-    note_id: string;
-    version?: number | null;
+    version: string;
   };
   debug?: string | null;
   errors?: {
@@ -163,6 +119,7 @@ export type ResponseString = {
 export type ResponseVecNote = {
   data?: Array<{
     archived: boolean;
+    content: string;
     created_at: string;
     deleted_at?: string | null;
     id: string;
@@ -170,6 +127,7 @@ export type ResponseVecNote = {
     title: string;
     updated_at: string;
     user_id: string;
+    version: string;
   }>;
   debug?: string | null;
   errors?: {
@@ -179,6 +137,14 @@ export type ResponseVecNote = {
   redirect_to?: string | null;
 };
 
+export type ScheduledQuestion = {
+  questions: SectionQuestions;
+  trigger_at: number;
+};
+
+/**
+ * TODO: Add reference to the transcription
+ */
 export type SectionQuestions = {
   cloze: Array<ClozeQuestion>;
   flashcards: Array<FlashCardQuestion>;
@@ -187,19 +153,10 @@ export type SectionQuestions = {
 
 export type SeededNote = {
   archived?: boolean | null;
+  content: string;
   pinned?: boolean | null;
   title: string;
-};
-
-export type SeededNoteContent = {
-  /**
-   * This is a markdown
-   *
-   * We can change it in the feature to use MDX to support more components
-   */
-  content: string;
-  note_id: string;
-  version?: number | null;
+  version?: string | null;
 };
 
 export type SeededUser = {
@@ -213,35 +170,12 @@ export type Token = {
   token: string;
 };
 
-export type YouTubeStreamEventUpdate = {
-  data: {
-    id: string;
-  };
-  type: 'start';
-} | {
-  data: {
-    position: number;
-  };
-  type: 'seeked';
-} | {
-  type: 'paused';
-} | {
-  type: 'resumed';
-} | {
-  data: {
-    position: number;
-  };
-  type: 'position_updated';
+export type YouTubeQuestionsRequest = {
+  url: string;
 };
 
-export type YouTubeStreamResponse = {
-  data: string;
-  type: 'error';
-} | {
-  data: SectionQuestions;
-  type: 'question';
-} | {
-  type: 'ready';
+export type YouTubeQuestionsResponse = {
+  questions: Array<ScheduledQuestion>;
 };
 
 export type LoginData = {
@@ -356,25 +290,6 @@ export type SignupResponses = {
 
 export type SignupResponse = SignupResponses[keyof SignupResponses];
 
-export type WsHandlerData = {
-  /**
-   * Event messages sent over WebSocket
-   */
-  body: YouTubeStreamEventUpdate;
-  path?: never;
-  query?: never;
-  url: '/api/v1/interactive/yt/ws';
-};
-
-export type WsHandlerResponses = {
-  /**
-   * WebSocket messages
-   */
-  200: YouTubeStreamResponse;
-};
-
-export type WsHandlerResponse = WsHandlerResponses[keyof WsHandlerResponses];
-
 export type GetNotesData = {
   body?: never;
   path?: never;
@@ -437,118 +352,6 @@ export type CreateNoteResponses = {
 
 export type CreateNoteResponse = CreateNoteResponses[keyof CreateNoteResponses];
 
-export type PatchNoteContentData = {
-  body: PatchNoteContent;
-  path?: never;
-  query?: never;
-  url: '/api/v1/notes/content';
-};
-
-export type PatchNoteContentErrors = {
-  /**
-   * Invalid input
-   */
-  400: ResponseString;
-  /**
-   * Unauthorized
-   */
-  401: ResponseString;
-  /**
-   * Note not found
-   */
-  404: ResponseString;
-  /**
-   * Internal server error
-   */
-  500: ResponseString;
-};
-
-export type PatchNoteContentError = PatchNoteContentErrors[keyof PatchNoteContentErrors];
-
-export type PatchNoteContentResponses = {
-  /**
-   * Note content created successfully
-   */
-  201: ResponseNoteContent;
-};
-
-export type PatchNoteContentResponse = PatchNoteContentResponses[keyof PatchNoteContentResponses];
-
-export type CreateNoteContentData = {
-  body: SeededNoteContent;
-  path?: never;
-  query?: never;
-  url: '/api/v1/notes/content';
-};
-
-export type CreateNoteContentErrors = {
-  /**
-   * Invalid input
-   */
-  400: ResponseString;
-  /**
-   * Unauthorized
-   */
-  401: ResponseString;
-  /**
-   * Note not found
-   */
-  404: ResponseString;
-  /**
-   * Internal server error
-   */
-  500: ResponseString;
-};
-
-export type CreateNoteContentError = CreateNoteContentErrors[keyof CreateNoteContentErrors];
-
-export type CreateNoteContentResponses = {
-  /**
-   * Note content created successfully
-   */
-  201: ResponseSeededNoteContent;
-};
-
-export type CreateNoteContentResponse = CreateNoteContentResponses[keyof CreateNoteContentResponses];
-
-export type GetNoteContentByIdData = {
-  body?: never;
-  path: {
-    /**
-     * Note content ID
-     */
-    note_content_id: string;
-  };
-  query?: never;
-  url: '/api/v1/notes/content/{content_id}';
-};
-
-export type GetNoteContentByIdErrors = {
-  /**
-   * Unauthorized
-   */
-  401: ResponseString;
-  /**
-   * Note content not found
-   */
-  404: ResponseString;
-  /**
-   * Internal server error
-   */
-  500: ResponseString;
-};
-
-export type GetNoteContentByIdError = GetNoteContentByIdErrors[keyof GetNoteContentByIdErrors];
-
-export type GetNoteContentByIdResponses = {
-  /**
-   * Note Content retrieved successfully
-   */
-  200: ResponseNoteContent;
-};
-
-export type GetNoteContentByIdResponse = GetNoteContentByIdResponses[keyof GetNoteContentByIdResponses];
-
 export type GetNoteByIdData = {
   body?: never;
   path: {
@@ -587,8 +390,8 @@ export type GetNoteByIdResponses = {
 
 export type GetNoteByIdResponse = GetNoteByIdResponses[keyof GetNoteByIdResponses];
 
-export type GetNoteContentByNoteIdData = {
-  body?: never;
+export type PatchNoteData = {
+  body: PatchedNote;
   path: {
     /**
      * Note ID
@@ -596,10 +399,14 @@ export type GetNoteContentByNoteIdData = {
     note_id: string;
   };
   query?: never;
-  url: '/api/v1/notes/{note_id}/content';
+  url: '/api/v1/notes/{note_id}';
 };
 
-export type GetNoteContentByNoteIdErrors = {
+export type PatchNoteErrors = {
+  /**
+   * Invalid input
+   */
+  400: ResponseString;
   /**
    * Unauthorized
    */
@@ -614,13 +421,78 @@ export type GetNoteContentByNoteIdErrors = {
   500: ResponseString;
 };
 
-export type GetNoteContentByNoteIdError = GetNoteContentByNoteIdErrors[keyof GetNoteContentByNoteIdErrors];
+export type PatchNoteError = PatchNoteErrors[keyof PatchNoteErrors];
 
-export type GetNoteContentByNoteIdResponses = {
+export type PatchNoteResponses = {
   /**
-   * Content retrieved successfully
+   * Note content created successfully
    */
-  200: ResponseNoteContent;
+  201: ResponseNote;
 };
 
-export type GetNoteContentByNoteIdResponse = GetNoteContentByNoteIdResponses[keyof GetNoteContentByNoteIdResponses];
+export type PatchNoteResponse = PatchNoteResponses[keyof PatchNoteResponses];
+
+export type YtQuestionHandlerData = {
+  /**
+   * YouTube video URL
+   */
+  body: YouTubeQuestionsRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/yt/questions';
+};
+
+export type YtQuestionHandlerErrors = {
+  /**
+   * Invalid YouTube URL
+   */
+  400: unknown;
+  /**
+   * Unable to retrieve YouTube captions
+   */
+  422: unknown;
+  /**
+   * Question generation failed
+   */
+  500: unknown;
+};
+
+export type YtQuestionHandlerResponses = {
+  /**
+   * Successfully generated timestamped questions
+   */
+  200: YouTubeQuestionsResponse;
+};
+
+export type YtQuestionHandlerResponse = YtQuestionHandlerResponses[keyof YtQuestionHandlerResponses];
+
+export type YtSummaryHandlerData = {
+  body: YouTubeQuestionsRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/yt/summary';
+};
+
+export type YtSummaryHandlerErrors = {
+  /**
+   * YouTube video not found
+   */
+  404: unknown;
+  /**
+   * Unable to retrieve YouTube captions
+   */
+  422: unknown;
+  /**
+   * Internal server error
+   */
+  500: unknown;
+};
+
+export type YtSummaryHandlerResponses = {
+  /**
+   * YouTube summary generated and saved successfully
+   */
+  200: ResponseNote;
+};
+
+export type YtSummaryHandlerResponse = YtSummaryHandlerResponses[keyof YtSummaryHandlerResponses];

@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Markdown } from "@tiptap/markdown";
@@ -6,6 +5,9 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Mathematics } from '@tiptap/extension-mathematics'
+import { CodeBlockLowlightMermaid } from "./mermaid-editor-plugin";
+import { TableKit } from '@tiptap/extension-table'
 import {
   Bold,
   Italic,
@@ -24,6 +26,20 @@ import {
   Redo2,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import mermaid from "mermaid";
+import { createLowlight } from "lowlight";
+import typescript from "highlight.js/lib/languages/typescript";
+import javascript from "highlight.js/lib/languages/javascript";
+import python from "highlight.js/lib/languages/python";
+import rust from "highlight.js/lib/languages/rust";
+import json from "highlight.js/lib/languages/json";
+import bash from "highlight.js/lib/languages/bash";
+import { useTheme } from "../theme-provider";
+import { Admonition } from "./admonition";
+
+mermaid.initialize({
+  startOnLoad: false,
+});
 
 interface DocumentEditorProps {
   content: string;
@@ -83,11 +99,32 @@ export function DocumentEditor({
     onSaveRef.current = onSave;
   }, [onSave]);
 
+  const lowlight = createLowlight();
+
+  lowlight.register("typescript", typescript);
+  lowlight.register("javascript", javascript);
+  lowlight.register("python", python);
+  lowlight.register("rust", rust);
+  lowlight.register("json", json);
+  lowlight.register("bash", bash);
+
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure(
+        { codeBlock: false, }
+      ),
       Markdown,
       Underline,
+      Admonition,
+      CodeBlockLowlightMermaid.configure({
+        lowlight,
+        debounce: 300,
+        mermaidConfig: {
+          theme: useTheme().theme == 'dark' ? "dark" : "default",
+        },
+      }),
+      Mathematics,
+      TableKit,
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -96,6 +133,7 @@ export function DocumentEditor({
       Placeholder.configure({
         placeholder,
       }),
+
     ],
     content,
     contentType: "markdown",
@@ -134,7 +172,6 @@ export function DocumentEditor({
   // externally updated content. Do not emit an update for this operation.
   useEffect(() => {
     if (!editor) return;
-
     const currentMarkdown = editor.getMarkdown();
 
     if (currentMarkdown !== content) {

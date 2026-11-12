@@ -16,6 +16,9 @@ pub enum BaseError {
 
     #[error("Resource Not Found")]
     NotFound,
+
+    #[error("Something went wrong")]
+    UnprocessableEntity,
 }
 
 impl AppErrorTrait for BaseError {
@@ -25,6 +28,7 @@ impl AppErrorTrait for BaseError {
             Self::InternalServer => StatusCode::INTERNAL_SERVER_ERROR,
             Self::MissingParams => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::UnprocessableEntity => StatusCode::UNPROCESSABLE_ENTITY,
         }
     }
 

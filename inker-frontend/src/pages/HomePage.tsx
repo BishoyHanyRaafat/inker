@@ -14,7 +14,6 @@ import {
 
 export default function Home() {
   const currentYear = new Date().getFullYear();
-
   return (
     <div className="min-h-screen flex flex-col bg-background bg-gradient-hero relative overflow-hidden">
       {/* Background decorations */}

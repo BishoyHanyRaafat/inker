@@ -27,8 +27,15 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()"))
                             .primary_key(),
                     )
+                    .col(
+                        ColumnDef::new(Note::Version)
+                            .string()
+                            .not_null()
+                            .default("1"),
+                    )
                     .col(string(Note::Title).not_null())
                     .col(uuid(Note::UserId).not_null())
+                    .col(text(Note::Content).not_null())
                     .col(
                         timestamp(Note::CreatedAt)
                             .not_null()
@@ -64,40 +71,11 @@ impl MigrationTrait for Migration {
                     )
                     .to_owned(),
             )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
-                    .table(NoteContent::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(NoteContent::Id)
-                            .uuid()
-                            .not_null()
-                            .default(Expr::cust("gen_random_uuid()"))
-                            .primary_key(),
-                    )
-                    .col(integer(NoteContent::Version).not_null().default(1))
-                    .col(text(NoteContent::Content).not_null())
-                    .col(uuid(NoteContent::NoteId).not_null())
-                    .foreign_key(
-                        ForeignKey::create()
-                            .from(NoteContent::Table, NoteContent::NoteId)
-                            .to(Note::Table, Note::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
             .await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Replace the sample below with your own migration scripts
-        manager
-            .drop_table(Table::drop().table(NoteContent::Table).to_owned())
-            .await?;
-
         manager
             .drop_table(Table::drop().table(Note::Table).to_owned())
             .await
@@ -108,20 +86,13 @@ impl MigrationTrait for Migration {
 enum Note {
     Table,
     Id,
+    Version,
     Title,
     UserId,
+    Content,
     CreatedAt,
     UpdatedAt,
     DeletedAt,
     Archived,
     Pinned,
-}
-
-#[derive(DeriveIden)]
-enum NoteContent {
-    Table,
-    Id,
-    Version,
-    Content,
-    NoteId,
 }

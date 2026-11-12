@@ -4,9 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "oauth_provider")]
 #[serde(rename_all = "lowercase")]
 pub enum OauthProvider {

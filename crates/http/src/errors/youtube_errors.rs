@@ -1,7 +1,8 @@
-#![allow(dead_code)]
-use serde::{Serialize, Serializer};
+use reqwest::StatusCode;
 use std::borrow::Cow;
 use thiserror::Error;
+
+use crate::errors::AppErrorTrait;
 
 #[derive(Error, Debug)]
 pub enum YoutubeError {
@@ -10,30 +11,17 @@ pub enum YoutubeError {
 
     #[error("Decode error: {0}")]
     JsonDecodeError(#[from] serde_json::Error),
-
-    #[error("{0}")]
-    Message(String, bool),
 }
 
-// Implement AppErrorTrait
-impl YoutubeError {
-    fn error_message(&self) -> Cow<'static, str> {
+impl AppErrorTrait for YoutubeError {
+    fn status_code(&self) -> StatusCode {
         match self {
-            YoutubeError::VideoNotFound => Cow::from("The requested video was not found."),
-            YoutubeError::JsonDecodeError(e) => {
-                Cow::from(format!("Failed to decode response: {}", e))
-            }
-            YoutubeError::Message(e, b) => Cow::from(format!("is_fatal={}, message={}", b, e)),
+            Self::VideoNotFound => StatusCode::BAD_REQUEST,
+            Self::JsonDecodeError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
-}
 
-impl Serialize for YoutubeError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // Convert Cow<'static, str> to &str and serialize
-        serializer.serialize_str(self.error_message().as_ref())
+    fn error_message(&self) -> Cow<'static, str> {
+        Cow::Owned(self.to_string())
     }
 }

@@ -3,7 +3,6 @@
 pub mod prelude;
 
 pub mod note;
-pub mod note_content;
 pub mod oauth2;
 pub mod password;
 pub mod refresh_tokens;

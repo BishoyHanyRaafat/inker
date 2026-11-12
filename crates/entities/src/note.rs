@@ -6,21 +6,21 @@ use utoipa::ToSchema;
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize, ToSchema)]
-#[schema(as = Note)]
 #[sea_orm(table_name = "note")]
+#[schema(as = Note)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
+    pub version: String,
     pub title: String,
     pub user_id: Uuid,
+    #[sea_orm(column_type = "Text")]
+    pub content: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub deleted_at: Option<DateTime>,
     pub archived: bool,
     pub pinned: bool,
-    #[sea_orm(has_many)]
-    #[serde(skip)]
-    pub note_contents: HasMany<super::note_content::Entity>,
     #[sea_orm(
         belongs_to,
         from = "user_id",
