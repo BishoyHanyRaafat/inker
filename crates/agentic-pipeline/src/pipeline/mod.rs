@@ -90,6 +90,7 @@ impl AgenticPipeline<Empty> {
     }
 
     pub async fn extract(self) -> Result<AgenticPipeline<Extracted>, PipelineError> {
+        tracing::info!("Extracting");
         // Stage 1: Extract concepts independently from transcript batches.
         // let concepts = extraction::extract_concepts(
         //     &self.agents.extraction,
@@ -126,6 +127,7 @@ impl AgenticPipeline<Empty> {
 
 impl<S: HasExtractedConcepts> AgenticPipeline<S> {
     pub async fn generate_questions(self) -> Result<AgenticPipeline<Questioned>, PipelineError> {
+        tracing::info!("Generating Questions");
         let questioned =
             questions::generate_questions(&self.agents.question, self.state.concepts()).await?;
 
@@ -143,6 +145,7 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
     }
 
     pub async fn generate_notes_plan(self) -> Result<AgenticPipeline<Planned>, PipelineError> {
+        tracing::info!("Planning Note");
         let concepts: Vec<ExtractedConceptsStripped> = self
             .state
             .concepts()
@@ -152,7 +155,7 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
             .collect();
         let outline = summary::generate_plan(&self.agents.planner, &concepts).await?;
         tracing::info!(
-            "Generated a plan\ntitle {}\nsubject{}\ntags: {:?}\ncoverage_notes {:?}\nlearning_objectives {:?}",
+            "Generated a plan\ntitle: {}\nsubject: {}\ntags: {:?}\ncoverage_notes {:?}\nlearning_objectives {:?}",
             outline.title,
             outline.subject,
             outline.tags,
@@ -175,12 +178,14 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
 
 impl AgenticPipeline<Planned> {
     pub async fn generate_notes(self) -> Result<AgenticPipeline<Summarized>, PipelineError> {
+        tracing::info!("Noting, Take a breath...");
         let tool = GetConceptSection::new(self.state.concepts());
         let material = summary::generate_planned_section(
             &self.agents.get_material_note(tool),
             &self.state.outline.sections,
         )
-        .await;
+        .await?;
+        tracing::info!("NOICE, {} note sections generated", material.len());
         Ok(AgenticPipeline {
             agents: self.agents,
             batch_tool: self.batch_tool,
@@ -193,7 +198,7 @@ impl AgenticPipeline<Planned> {
                     description: self.state.outline.description,
                     subject: self.state.outline.subject,
                     learning_objectives: self.state.outline.learning_objectives,
-                    sections: material?,
+                    sections: material,
                     coverage_notes: self.state.outline.coverage_notes,
                     tags: self.state.outline.tags,
                 },
