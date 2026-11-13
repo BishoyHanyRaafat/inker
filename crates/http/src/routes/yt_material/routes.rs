@@ -1,4 +1,6 @@
-use agentic_pipeline::{AgenticPipeline, SectionQuestions, pipeline::ExtractedConcept};
+use agentic_pipeline::{
+    AgenticPipeline, MaterialNote, SectionQuestions, pipeline::ExtractedConcept,
+};
 use axum::{Json, extract::State};
 use oauth2::url;
 
@@ -8,7 +10,10 @@ use crate::{
     responses::ApiResponse,
     routes::{
         auth::models::Claims,
-        notes::{models::SeededNote, notes_handler::create_note},
+        notes::{
+            models::{Note, SeededNote},
+            notes_handler::create_note,
+        },
         yt_material::models::{
             ScheduledQuestion, YouTubeQuestionsRequest, YouTubeQuestionsResponse,
         },
@@ -155,7 +160,7 @@ pub async fn yt_question_handler(
         (
             status = 200,
             description = "YouTube summary generated and saved successfully",
-            body = ApiResponse<entities::note::Model>
+            body = ApiResponse<Note>
         ),
         (
             status = 404,
@@ -179,7 +184,7 @@ pub async fn yt_summary_handler(
     claims: Claims,
     State(app_state): State<AppState>,
     Json(payload): Json<YouTubeQuestionsRequest>,
-) -> Result<ApiResponse<entities::note::Model>, AppError> {
+) -> Result<ApiResponse<Note>, AppError> {
     let video_id = extract_video_id(&payload.url)
         .map_err(|e| YoutubeError::VideoNotFound.get_response().with_debug(e))?;
 
@@ -218,21 +223,34 @@ pub async fn yt_summary_handler(
             BaseError::InternalServer.get_response().with_debug(e)
         })?;
 
+    let MaterialNote {
+        title,
+        sections,
+        coverage_notes,
+        tags,
+        description,
+        subject,
+        learning_objectives,
+    } = summary.into_summary();
+
     let note = create_note(
-        claims.clone(),
+        claims,
         axum::extract::State(app_state.clone()),
         axum::Json(SeededNote {
-            title: summary.summary().title.clone(),
+            title,
             archived: Some(false),
             pinned: Some(false),
             version: None,
-            content: summary
-                .summary()
-                .sections
-                .iter()
-                .map(|section| section.content.clone())
+            content: sections
+                .into_iter()
+                .map(|section| section.content)
                 .collect::<Vec<_>>()
                 .join("\n"),
+            coverage_notes: Some(coverage_notes),
+            tags: Some(tags),
+            description: Some(description),
+            subject: Some(subject),
+            learning_objectives: Some(learning_objectives),
         }),
     )
     .await?;

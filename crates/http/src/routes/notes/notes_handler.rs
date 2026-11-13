@@ -4,7 +4,7 @@ use crate::{
     responses::ApiResponse,
     routes::{
         auth::models::Claims,
-        notes::models::{PatchedNote, SeededNote},
+        notes::models::{Note, PatchedNote, SeededNote},
     },
 };
 use axum::Json;
@@ -70,7 +70,7 @@ fn validate_version(version: String) -> Result<(), AppError> {
         ("bearer" = [])
     ),
     responses(
-        (status = 200, description = "Notes retrieved successfully", body = ApiResponse<Vec<entities::note::Model>>),
+        (status = 200, description = "Notes retrieved successfully", body = ApiResponse<Vec<Note>>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 500, description = "Internal server error", body = ApiResponse<String>),
     )
@@ -79,7 +79,7 @@ fn validate_version(version: String) -> Result<(), AppError> {
 pub async fn get_notes(
     State(app_state): State<AppState>,
     claims: Claims,
-) -> Result<ApiResponse<Vec<entities::note::Model>>, AppError> {
+) -> Result<ApiResponse<Vec<Note>>, AppError> {
     let entities = entities::note::Entity::find()
         .filter(entities::note::Column::UserId.eq(claims.user_id))
         .all(&app_state.db)
@@ -89,7 +89,11 @@ pub async fn get_notes(
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::OK,
         "All notes retrieved successfully",
-        entities,
+        entities
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<Vec<Note>, _>>()
+            .map_err(|e| BaseError::InternalServer.get_response().with_debug(e))?,
     ))
 }
 
@@ -107,7 +111,7 @@ pub async fn get_notes(
         ("note_id" = Uuid, Path, description = "Note ID")
     ),
     responses(
-        (status = 200, description = "Note retrieved successfully", body = ApiResponse<entities::note::Model>),
+        (status = 200, description = "Note retrieved successfully", body = ApiResponse<Note>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 404, description = "Note not found", body = ApiResponse<String>),
         (status = 500, description = "Internal server error", body = ApiResponse<String>),
@@ -118,7 +122,7 @@ pub async fn get_note_by_id(
     State(app_state): State<AppState>,
     claims: Claims,
     Path(id): Path<Uuid>,
-) -> Result<ApiResponse<entities::note::Model>, AppError> {
+) -> Result<ApiResponse<Note>, AppError> {
     let entity = entities::note::Entity::find()
         .filter(entities::note::Column::Id.eq(id))
         .filter(entities::note::Column::UserId.eq(claims.user_id))
@@ -130,7 +134,9 @@ pub async fn get_note_by_id(
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::OK,
         "note retrieved successfully",
-        entity,
+        entity
+            .try_into()
+            .map_err(|e| BaseError::InternalServer.get_response().with_debug(e))?,
     ))
 }
 
@@ -144,7 +150,7 @@ pub async fn get_note_by_id(
     ),
     request_body = SeededNote,
     responses(
-        (status = 201, description = "Note created successfully", body = ApiResponse<entities::note::Model>),
+        (status = 201, description = "Note created successfully", body = ApiResponse<Note>),
         (status = 400, description = "Invalid input", body = ApiResponse<String>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 500, description = "Internal server error", body = ApiResponse<String>),
@@ -155,7 +161,7 @@ pub async fn create_note(
     claims: Claims,
     State(app_state): State<AppState>,
     Json(note): Json<SeededNote>,
-) -> Result<ApiResponse<entities::note::Model>, AppError> {
+) -> Result<ApiResponse<Note>, AppError> {
     // Validate input
     validate_note(&note)?;
 
@@ -163,7 +169,13 @@ pub async fn create_note(
         user_id: Set(claims.user_id),
         title: Set(note.title.trim().to_string()),
         archived: Set(note.archived.unwrap_or(false)),
+        content: Set(note.content),
         pinned: Set(note.pinned.unwrap_or(false)),
+        description: Set(note.description),
+        subject: Set(note.subject),
+        tags: Set(note.tags.map(Into::into)),
+        coverage_notes: Set(note.coverage_notes.map(Into::into)),
+        learning_objectives: Set(note.learning_objectives.map(Into::into)),
         ..Default::default()
     }
     .insert(&app_state.db)
@@ -173,7 +185,9 @@ pub async fn create_note(
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::CREATED,
         "Note created successfully",
-        inserted_note,
+        inserted_note
+            .try_into()
+            .map_err(|e| BaseError::InternalServer.get_response().with_debug(e))?,
     ))
 }
 
@@ -190,7 +204,7 @@ pub async fn create_note(
     ),
     request_body = PatchedNote,
     responses(
-        (status = 201, description = "Note content created successfully", body = ApiResponse<entities::note::Model>),
+        (status = 201, description = "Note content created successfully", body = ApiResponse<Note>),
         (status = 400, description = "Invalid input", body = ApiResponse<String>),
         (status = 401, description = "Unauthorized", body = ApiResponse<String>),
         (status = 404, description = "Note not found", body = ApiResponse<String>),
@@ -203,7 +217,7 @@ pub async fn patch_note(
     State(app_state): State<AppState>,
     Path(note_id): Path<Uuid>,
     Json(note): Json<PatchedNote>,
-) -> Result<ApiResponse<entities::note::Model>, AppError> {
+) -> Result<ApiResponse<Note>, AppError> {
     if let Some(note_content) = &note.content {
         validate_content(note_content)?;
     }
@@ -243,14 +257,13 @@ pub async fn patch_note(
     Ok(ApiResponse::success_response(
         axum::http::StatusCode::OK,
         "Updated the content successfully",
-        updated,
+        updated
+            .try_into()
+            .map_err(|e| BaseError::InternalServer.get_response().with_debug(e))?,
     ))
 }
 
 // TODO:
-// Use one table for both the content and the note useless ids
-// better manage vectors for the agentic flow
 // add caches for the content and extracted stuff
-// better notes support more meta data and date time
 // Fix OAuth2
-// Use sse for and queues for tasks like ai stuff
+// Use sse for long lived requests and queues for tasks like ai stuff

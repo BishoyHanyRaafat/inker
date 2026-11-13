@@ -25,11 +25,11 @@ pub struct ExtractedConceptsStripped {
     pub concepts: Concepts,
 }
 
-impl From<&ExtractedConcept> for ExtractedConceptsStripped {
-    fn from(value: &ExtractedConcept) -> Self {
+impl From<ExtractedConcept> for ExtractedConceptsStripped {
+    fn from(value: ExtractedConcept) -> Self {
         Self {
             id: value.id,
-            concepts: value.concepts.clone(),
+            concepts: value.concepts,
         }
     }
 }
@@ -75,6 +75,7 @@ pub struct Material<T> {
     pub learning_objectives: Vec<String>,
     pub sections: Vec<T>,
     pub coverage_notes: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -251,6 +251,7 @@ Create sections based on the actual educational content.
 - Do not introduce unsupported information.
 - Do not discard important details.
 - If information is ambiguous, flag it in coverage_notes.
+- Add some tags to be able to search on the note.
 - Avoid unnecessary duplication across sections.
 
 ## 7. Visual Recommendations

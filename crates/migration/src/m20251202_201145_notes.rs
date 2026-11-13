@@ -63,6 +63,11 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(false),
                     )
+                    .col(string(Note::Subject).null())
+                    .col(string(Note::Description).null())
+                    .col(json_binary(Note::LearningObjectives).null())
+                    .col(json_binary(Note::CoverageNotes).null())
+                    .col(json_binary(Note::Tags).null())
                     .foreign_key(
                         ForeignKey::create()
                             .from(Note::Table, Note::UserId)
@@ -95,4 +100,9 @@ enum Note {
     DeletedAt,
     Archived,
     Pinned,
+    Subject,
+    Description,
+    LearningObjectives,
+    CoverageNotes,
+    Tags,
 }

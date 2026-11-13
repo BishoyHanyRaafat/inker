@@ -7,7 +7,7 @@ mod summary;
 
 use crate::{
     error::PipelineError,
-    pipeline::models::{ExtractedConceptsStripped, MaterialNote, MaterialPlanOutline},
+    pipeline::models::{ExtractedConceptsStripped, MaterialPlanOutline},
     tools::{GetTranscriptSection, get_concept::GetConceptSection},
 };
 pub use config::{
@@ -15,7 +15,8 @@ pub use config::{
     MAX_SECTIONS_PER_BATCH, MODEL_NAME,
 };
 pub use models::{
-    Concept, ConceptRef, Concepts, ExtractedConcept, ExtractedConceptMetaData, SectionQuestions,
+    Concept, ConceptRef, Concepts, ExtractedConcept, ExtractedConceptMetaData, MaterialNote,
+    SectionQuestions,
 };
 
 use agentic::PipelineAgents;
@@ -121,13 +122,14 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
         let questioned =
             questions::generate_questions(&self.agents.question, self.state.concepts()).await?;
 
+        let concepts = self.state.into_concepts();
         Ok(AgenticPipeline {
             agents: self.agents,
             batch_tool: self.batch_tool,
             video_title: self.video_title,
             video_description: self.video_description,
             state: Questioned {
-                concepts: self.state.concepts().clone(),
+                concepts,
                 questioned,
             },
         })
@@ -135,8 +137,13 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
 
     pub async fn generate_notes_plan(self) -> Result<AgenticPipeline<Planned>, PipelineError> {
         let tool = GetConceptSection::new(self.state.concepts());
-        let concepts: Vec<ExtractedConceptsStripped> =
-            self.state.concepts().iter().map(Into::into).collect();
+        let concepts: Vec<ExtractedConceptsStripped> = self
+            .state
+            .concepts()
+            .clone()
+            .into_iter()
+            .map(Into::into)
+            .collect();
         let agent = &self.agents.get_planner_builder(tool);
         let outline = summary::generate_plan(agent, &concepts).await;
         Ok(AgenticPipeline {
@@ -145,7 +152,7 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
             video_title: self.video_title,
             video_description: self.video_description,
             state: Planned {
-                concepts: self.state.concepts().clone(),
+                concepts: self.state.into_concepts(),
                 outline: outline?,
             },
         })
@@ -173,6 +180,7 @@ impl AgenticPipeline<Planned> {
                     learning_objectives: self.state.outline.learning_objectives,
                     sections: material?,
                     coverage_notes: self.state.outline.coverage_notes,
+                    tags: self.state.outline.tags,
                 },
             },
         })
@@ -181,17 +189,26 @@ impl AgenticPipeline<Planned> {
 
 pub trait HasExtractedConcepts {
     fn concepts(&self) -> &Vec<ExtractedConcept>;
+    fn into_concepts(self) -> Vec<ExtractedConcept>;
 }
 
 impl HasExtractedConcepts for Extracted {
     fn concepts(&self) -> &Vec<ExtractedConcept> {
         &self.concepts
     }
+
+    fn into_concepts(self) -> Vec<ExtractedConcept> {
+        self.concepts
+    }
 }
 
 impl HasExtractedConcepts for Questioned {
     fn concepts(&self) -> &Vec<ExtractedConcept> {
         &self.concepts
+    }
+
+    fn into_concepts(self) -> Vec<ExtractedConcept> {
+        self.concepts
     }
 }
 
@@ -207,5 +224,9 @@ impl AgenticPipeline<Questioned> {
 impl AgenticPipeline<Summarized> {
     pub fn summary(&self) -> &MaterialNote {
         &self.state.summary
+    }
+
+    pub fn into_summary(self) -> MaterialNote {
+        self.state.summary
     }
 }

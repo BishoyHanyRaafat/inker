@@ -2,3 +2,5 @@
 .env
 .DS_Store
 ./inker-frontend/openapi.json
+inker-frontend/openapi.json
+output.json

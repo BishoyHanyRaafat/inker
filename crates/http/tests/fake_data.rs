@@ -133,6 +133,11 @@ pub mod note {
             deleted_at: None,
             archived: false,
             pinned: false,
+            coverage_notes: None,
+            description: None,
+            subject: None,
+            tags: None,
+            learning_objectives: None,
         }
     }
 }

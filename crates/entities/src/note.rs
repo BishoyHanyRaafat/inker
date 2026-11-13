@@ -21,6 +21,14 @@ pub struct Model {
     pub deleted_at: Option<DateTime>,
     pub archived: bool,
     pub pinned: bool,
+    pub subject: Option<String>,
+    pub description: Option<String>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub learning_objectives: Option<Json>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub coverage_notes: Option<Json>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub tags: Option<Json>,
     #[sea_orm(
         belongs_to,
         from = "user_id",

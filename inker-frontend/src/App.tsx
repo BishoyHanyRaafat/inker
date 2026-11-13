@@ -7,7 +7,6 @@ import YTInteractive from "./pages/YTInteractivePage";
 import NoteDetail from "./pages/NoteDetailPage";
 import { ThemeProvider } from "@/components/theme-provider"
 
-
 function App() {
   return (
 

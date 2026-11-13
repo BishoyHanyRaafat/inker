@@ -1,5 +1,4 @@
 
-
 import CodeBlockLowlight, {
   type CodeBlockLowlightOptions,
 } from "@tiptap/extension-code-block-lowlight";

@@ -12,6 +12,7 @@ use crate::routes::yt_material::models::{
 };
 use crate::routes::yt_material::routes;
 use entities::sea_orm_active_enums::OauthProvider;
+use inker_http::routes::notes::models::Note;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
@@ -31,8 +32,8 @@ use utoipa::OpenApi;
     components(schemas(
         ApiResponse<Auth>,
         ApiResponse<String>,
-        ApiResponse<Vec<entities::note::Model>>,
-        ApiResponse<entities::note::Model>,
+        ApiResponse<Vec<Note>>,
+        ApiResponse<Note>,
         PatchedNote,
         Auth,
         Token,
@@ -41,7 +42,6 @@ use utoipa::OpenApi;
         ProviderPath,
         ProviderQuery,
         OauthProvider,
-        entities::note::Model,
         SeededNote,
         YouTubeQuestionsRequest,
         YouTubeQuestionsResponse,

@@ -27,10 +27,15 @@ export type LoginUser = {
 export type Note = {
   archived: boolean;
   content: string;
+  coverage_notes?: Array<string> | null;
   created_at: string;
   deleted_at?: string | null;
+  description?: string | null;
   id: string;
+  learning_objectives?: Array<string> | null;
   pinned: boolean;
+  subject?: string | null;
+  tags?: Array<string> | null;
   title: string;
   updated_at: string;
   user_id: string;
@@ -47,7 +52,12 @@ export type OpenEndedQuestion = {
 export type PatchedNote = {
   archived?: boolean | null;
   content?: string | null;
+  coverage_notes?: Array<string> | null;
+  description?: string | null;
+  learning_objectives?: Array<string> | null;
   pinned?: boolean | null;
+  subject?: string | null;
+  tags?: Array<string> | null;
   title?: string | null;
   version?: string | null;
 };
@@ -83,10 +93,15 @@ export type ResponseNote = {
   data?: {
     archived: boolean;
     content: string;
+    coverage_notes?: Array<string> | null;
     created_at: string;
     deleted_at?: string | null;
+    description?: string | null;
     id: string;
+    learning_objectives?: Array<string> | null;
     pinned: boolean;
+    subject?: string | null;
+    tags?: Array<string> | null;
     title: string;
     updated_at: string;
     user_id: string;
@@ -120,10 +135,15 @@ export type ResponseVecNote = {
   data?: Array<{
     archived: boolean;
     content: string;
+    coverage_notes?: Array<string> | null;
     created_at: string;
     deleted_at?: string | null;
+    description?: string | null;
     id: string;
+    learning_objectives?: Array<string> | null;
     pinned: boolean;
+    subject?: string | null;
+    tags?: Array<string> | null;
     title: string;
     updated_at: string;
     user_id: string;
@@ -154,7 +174,12 @@ export type SectionQuestions = {
 export type SeededNote = {
   archived?: boolean | null;
   content: string;
+  coverage_notes?: Array<string> | null;
+  description?: string | null;
+  learning_objectives?: Array<string> | null;
   pinned?: boolean | null;
+  subject?: string | null;
+  tags?: Array<string> | null;
   title: string;
   version?: string | null;
 };
