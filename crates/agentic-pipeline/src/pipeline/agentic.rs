@@ -17,7 +17,7 @@ use super::config::MODEL_NAME;
 pub(super) struct PipelineAgents {
     pub extraction: Agent,
     pub question: Agent,
-    pub material_note: Agent,
+    pub planner: Agent,
     pub model: Model<GenerateContent>,
 }
 
@@ -40,25 +40,24 @@ impl PipelineAgents {
             .default_max_turns(2)
             .build();
 
-        let material_note = AgentBuilder::new(model.clone())
-            .preamble(SECTION_WRITER_PROMPT)
-            .temperature(0.3)
-            .default_max_turns(2)
-            .build();
-
-        Ok(Self {
-            extraction,
-            question,
-            material_note,
-            model,
-        })
-    }
-    pub fn get_planner_builder(&self, tool: GetConceptSection) -> Agent {
-        AgentBuilder::new(self.model.clone())
+        let planner = AgentBuilder::new(model.clone())
             .preamble(SUMMARY_PLANNER_PROMPT)
             .temperature(0.3)
             .default_max_turns(2)
+            .build();
+        Ok(Self {
+            extraction,
+            question,
+            planner,
+            model,
+        })
+    }
+    pub fn get_material_note(&self, tool: GetConceptSection) -> Agent {
+        AgentBuilder::new(self.model.clone())
+            .preamble(SECTION_WRITER_PROMPT)
+            .temperature(0.3)
             .tool(tool)
+            .default_max_turns(2)
             .build()
     }
 }

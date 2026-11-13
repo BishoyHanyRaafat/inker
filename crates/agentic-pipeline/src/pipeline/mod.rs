@@ -102,6 +102,13 @@ impl AgenticPipeline<Empty> {
         // For testing purposes to avoid token loss
         let concepts: Vec<ExtractedConcept> =
             serde_json::from_str(&std::fs::read_to_string("output.json").unwrap()).unwrap();
+        tracing::info!(
+            "Collected {} concepts",
+            concepts
+                .iter()
+                .map(|concepts| concepts.concepts.concepts.len())
+                .sum::<usize>()
+        );
 
         // std::fs::write(
         //     "output.json",
@@ -136,7 +143,6 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
     }
 
     pub async fn generate_notes_plan(self) -> Result<AgenticPipeline<Planned>, PipelineError> {
-        let tool = GetConceptSection::new(self.state.concepts());
         let concepts: Vec<ExtractedConceptsStripped> = self
             .state
             .concepts()
@@ -144,8 +150,16 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
             .into_iter()
             .map(Into::into)
             .collect();
-        let agent = &self.agents.get_planner_builder(tool);
-        let outline = summary::generate_plan(agent, &concepts).await;
+        let outline = summary::generate_plan(&self.agents.planner, &concepts).await?;
+        tracing::info!(
+            "Generated a plan\ntitle {}\nsubject{}\ntags: {:?}\ncoverage_notes {:?}\nlearning_objectives {:?}",
+            outline.title,
+            outline.subject,
+            outline.tags,
+            outline.coverage_notes,
+            outline.learning_objectives,
+        );
+        tracing::info!("Generated a plan for {} sections", outline.sections.len());
         Ok(AgenticPipeline {
             agents: self.agents,
             batch_tool: self.batch_tool,
@@ -153,7 +167,7 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
             video_description: self.video_description,
             state: Planned {
                 concepts: self.state.into_concepts(),
-                outline: outline?,
+                outline,
             },
         })
     }
@@ -161,8 +175,9 @@ impl<S: HasExtractedConcepts> AgenticPipeline<S> {
 
 impl AgenticPipeline<Planned> {
     pub async fn generate_notes(self) -> Result<AgenticPipeline<Summarized>, PipelineError> {
+        let tool = GetConceptSection::new(self.state.concepts());
         let material = summary::generate_planned_section(
-            &self.agents.material_note,
+            &self.agents.get_material_note(tool),
             &self.state.outline.sections,
         )
         .await;
@@ -203,6 +218,16 @@ impl HasExtractedConcepts for Extracted {
 }
 
 impl HasExtractedConcepts for Questioned {
+    fn concepts(&self) -> &Vec<ExtractedConcept> {
+        &self.concepts
+    }
+
+    fn into_concepts(self) -> Vec<ExtractedConcept> {
+        self.concepts
+    }
+}
+
+impl HasExtractedConcepts for Planned {
     fn concepts(&self) -> &Vec<ExtractedConcept> {
         &self.concepts
     }

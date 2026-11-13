@@ -48,11 +48,13 @@ impl Tool for GetConceptSection {
     type Error = ConceptRetrievalError;
 
     fn description(&self) -> String {
-        "Get the related concept by the ref, A concept is a content which the was stated in the material".to_string()
+        "Get the related concept by the ref, A concept is a content which the was stated in the material \
+        Use the batch id with the concept index to retrieve the concept"
+        .to_string()
     }
 
     fn parameters(&self) -> Value {
-        serde_json::to_value(schema_for!(ConceptRef)).unwrap()
+        serde_json::to_value(schema_for!(Vec<ConceptRef>)).unwrap()
     }
 
     async fn call(
@@ -60,6 +62,7 @@ impl Tool for GetConceptSection {
         _context: &mut ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
+        tracing::info!("Retriving {:?}", args);
         let concepts = args
             .iter()
             .map(|reference| {

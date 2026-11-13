@@ -83,5 +83,6 @@ async fn process_node_material(
         .await
         .map_err(|error| PipelineError::QuestionAgent(error.to_string()))?;
 
+    tracing::info!("Generate section with title: {}", node.title);
     Ok(response.output)
 }
