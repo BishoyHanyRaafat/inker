@@ -52,15 +52,14 @@ export default function Home() {
 
           {/* Headline */}
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in-up delay-100">
-            <span className="gradient-text">Your thoughts,</span>
+            <span className="text-foreground">Don't just study.</span>
             <br />
-            <span className="text-foreground">beautifully organized</span>
+            <span className="gradient-text text-primary">Understand.</span>
           </h1>
 
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up delay-200">
-            A modern note-taking app with rich block-based editing. Capture
-            ideas, create lists, and organize your life with lightning speed.
+            Transform learning materials into interactive experiences that help you understand, remember, and master new concepts
           </p>
 
           {/* CTA Buttons */}
@@ -71,7 +70,7 @@ export default function Home() {
               className="text-base px-8 h-12 shadow-lg glow-primary-hover transition-all duration-300"
             >
               <Link to="/signup" className="flex items-center gap-2">
-                Start for Free
+                Start Learning
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
@@ -81,7 +80,7 @@ export default function Home() {
               size="lg"
               className="text-base px-8 h-12 backdrop-blur-sm"
             >
-              <Link to="/login">Sign In to Your Account</Link>
+              <Link to="/login">Explore Inker</Link>
             </Button>
           </div>
 
@@ -108,20 +107,20 @@ export default function Home() {
         <div className="mt-20 md:mt-28 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto px-6 w-full">
           <FeatureCard
             icon={<LayoutGrid className="w-6 h-6" />}
-            title="Block-based editing"
-            description="Build your notes with flexible blocks - text, images, todos, tables, and more."
+            title="Structured Learning"
+            description="Turn lengthy learning materials into organized outlines, breaking complex topics into manageable sections and concepts."
             delay="delay-100"
           />
           <FeatureCard
             icon={<Lock className="w-6 h-6" />}
-            title="Secure & Private"
-            description="Your notes are encrypted and protected. Sign in with Google, GitHub, or email."
+            title="Active Recall"
+            description="Test your understanding with interactive questions that help reinforce concepts and identify knowledge gaps."
             delay="delay-200"
           />
           <FeatureCard
             icon={<Zap className="w-6 h-6" />}
-            title="Lightning fast"
-            description="Built with Rust on the backend for blazing performance. Your notes load instantly."
+            title="Learn From Videos"
+            description="Turn video content into structured learning materials. Follow concepts, explore explanations, and learn at your own pace."
             delay="delay-300"
           />
         </div>
@@ -134,9 +133,9 @@ export default function Home() {
                 <FolderKanban className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold mb-1">Smart Organization</h3>
+                <h3 className="font-semibold mb-1">AI-Powered Understanding</h3>
                 <p className="text-sm text-muted-foreground">
-                  Organize with folders, tags, and powerful search
+                  Get explanations, explore difficult concepts, and ask questions whenever something doesn't make sense.
                 </p>
               </div>
             </CardContent>
@@ -147,9 +146,9 @@ export default function Home() {
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold mb-1">AI Assistant</h3>
+                <h3 className="font-semibold mb-1">Connected Knowledge</h3>
                 <p className="text-sm text-muted-foreground">
-                  Get help writing, summarizing, and brainstorming
+                  Connect related concepts and build a deeper understanding of how everything fits together.
                 </p>
               </div>
             </CardContent>

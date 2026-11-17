@@ -27,6 +27,7 @@ impl PipelineAgents {
             .map_err(|error| PipelineError::Gemini(error.to_string()))?
             .completion(MODEL_NAME);
 
+        // let model = Ollama::new().completion("gemma4:12b");
         let extraction = AgentBuilder::new(model.clone())
             .preamble(EXTRACTION_SYSTEM_PROMPT)
             .temperature(0.2)

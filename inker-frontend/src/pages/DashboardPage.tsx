@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -271,12 +272,24 @@ export default function DashboardPage() {
 
 function NoteCard({ note }: { note: Note }) {
   return (
-    <Link to={`/notes/${note.id}`}>
+    <Link to={`/notes/${note.id}`} className="block min-w-0">
       <Card className="group card-hover border-border/50 bg-card/50 backdrop-blur-sm cursor-pointer h-full">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between">
-            <span className="truncate text-base">{note.title || "Untitled"}</span>
-            <div className="flex items-center gap-1 shrink-0">
+          <CardTitle className="flex min-w-0 items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="min-w-0 flex-1 truncate text-base cursor-default">
+                  {note.title || "Untitled"}
+                </span>
+              </TooltipTrigger>
+
+              <TooltipContent>
+                {note.title || "Untitled"}
+              </TooltipContent>
+            </Tooltip>
+
+
+            <div className="flex shrink-0 items-center gap-1">
               {note.pinned && (
                 <Pin className="w-4 h-4 text-primary fill-primary" />
               )}
@@ -286,6 +299,7 @@ function NoteCard({ note }: { note: Note }) {
             </div>
           </CardTitle>
         </CardHeader>
+
         <CardContent className="pt-0">
           <p className="text-xs text-muted-foreground">
             Updated{" "}
