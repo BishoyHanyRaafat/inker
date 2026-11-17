@@ -48,4 +48,10 @@ tower_governor = "0.8"
 
 [dev-dependencies]
 axum-test = "18.4.1"
+cargo-husky = { version = "1", features = [
+  "precommit-hook",
+  "run-cargo-check",
+  "run-cargo-clippy",
+  "run-cargo-fmt",
+] }
 serde_json.workspace = true

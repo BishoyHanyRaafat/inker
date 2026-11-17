@@ -58,9 +58,13 @@ tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "fmt",
 ] }
+url = "2"
 user-agent-parser = "*"
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 uuid = { version = "1", features = ["v4"] }
 vtt = "1.0.0"
 yt-processing = { path = "crates/yt-processing" }
+
+[patch.crates-io]
+yt-transcript-rs = { git = "https://github.com/BishoyHanyRaafat/yt-transcript-rs", branch = "main" }

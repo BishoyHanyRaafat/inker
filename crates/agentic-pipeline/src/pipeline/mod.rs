@@ -92,17 +92,23 @@ impl AgenticPipeline<Empty> {
     pub async fn extract(self) -> Result<AgenticPipeline<Extracted>, PipelineError> {
         tracing::info!("Extracting");
         // Stage 1: Extract concepts independently from transcript batches.
-        // let concepts = extraction::extract_concepts(
-        //     &self.agents.extraction,
-        //     self.batch_tool.clone(),
-        //     &self.video_title,
-        //     &self.video_description,
-        // )
-        // .await?;
+        let concepts = extraction::extract_concepts(
+            &self.agents.extraction,
+            self.batch_tool.clone(),
+            &self.video_title,
+            &self.video_description,
+        )
+        .await?;
+
+        // std::fs::write(
+        //     "output.json",
+        //     serde_json::to_string_pretty(&concepts).unwrap(),
+        // );
 
         // For testing purposes to avoid token loss
-        let concepts: Vec<ExtractedConcept> =
-            serde_json::from_str(&std::fs::read_to_string("output.json").unwrap()).unwrap();
+        // let concepts: Vec<ExtractedConcept> =
+        //     serde_json::from_str(&std::fs::read_to_string("output.json").unwrap()).unwrap();
+
         tracing::info!(
             "Collected {} concepts",
             concepts
@@ -111,10 +117,6 @@ impl AgenticPipeline<Empty> {
                 .sum::<usize>()
         );
 
-        // std::fs::write(
-        //     "output.json",
-        //     serde_json::to_string_pretty(&concepts).unwrap(),
-        // );
         Ok(AgenticPipeline {
             agents: self.agents,
             batch_tool: self.batch_tool,

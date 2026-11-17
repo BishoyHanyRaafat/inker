@@ -193,7 +193,7 @@ pub async fn yt_summary_handler(
         .fetch_captions(&video_id)
         .await
         .map_err(|e| {
-            tracing::error!("Caption fetching failed: {e}");
+            tracing::error!("Caption fetching failed: {e:#}");
             BaseError::UnprocessableEntity
                 .get_response()
                 .with_message("Unable to retrieve YouTube captions.".to_string())

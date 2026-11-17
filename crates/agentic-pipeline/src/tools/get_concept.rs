@@ -2,7 +2,8 @@ use crate::pipeline::{Concept, ConceptRef, Concepts, ExtractedConcept};
 use std::{collections::HashMap, sync::Arc};
 
 use rig::{prelude::*, tool::ToolContext};
-use schemars::schema_for;
+use schemars::{JsonSchema, schema_for};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
@@ -40,10 +41,15 @@ impl GetConceptSection {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct GetConceptSectionArgs {
+    pub references: Vec<ConceptRef>,
+}
+
 impl Tool for GetConceptSection {
     const NAME: &'static str = "get_concept_by_ref";
 
-    type Args = Vec<ConceptRef>;
+    type Args = GetConceptSectionArgs;
     type Output = Concepts;
     type Error = ConceptRetrievalError;
 
@@ -54,7 +60,7 @@ impl Tool for GetConceptSection {
     }
 
     fn parameters(&self) -> Value {
-        serde_json::to_value(schema_for!(Vec<ConceptRef>)).unwrap()
+        serde_json::to_value(schema_for!(GetConceptSectionArgs)).unwrap()
     }
 
     async fn call(
@@ -64,6 +70,7 @@ impl Tool for GetConceptSection {
     ) -> Result<Self::Output, Self::Error> {
         tracing::info!("Retriving {:?}", args);
         let concepts = args
+            .references
             .iter()
             .map(|reference| {
                 self.concepts

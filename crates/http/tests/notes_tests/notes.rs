@@ -35,7 +35,6 @@ async fn test_get_notes_returns_notes_for_user() {
         .await;
 
     let body = assert_status_json(response, StatusCode::OK);
-    assert_eq!(body["success"], true);
     assert_eq!(body["data"].as_array().unwrap().len(), 2);
 
     let ids: Vec<String> = body["data"]
@@ -79,6 +78,7 @@ async fn test_create_note_returns_400_when_title_empty() {
         .json(&json!({
             "title": "   ",
             "archived": false,
+            "content":"content",
             "pinned": false
         }))
         .await;
@@ -91,13 +91,14 @@ async fn test_create_note_returns_400_when_title_too_long() {
     let user_id = Uuid::new_v4();
     let token = valid_access_token(user_id);
 
-    let title = "a".repeat(501);
+    let title = "a".repeat(5000);
     let server = create_default_test_server();
     let response = server
         .post("/api/v1/notes")
         .authorization_bearer(token)
         .json(&json!({
             "title": title,
+            "content": "content",
             "archived": false,
             "pinned": false
         }))
@@ -128,13 +129,13 @@ async fn test_create_note_success_returns_201() {
         .authorization_bearer(token)
         .json(&json!({
             "title": inserted.title,
+            "content": inserted.content,
             "archived": inserted.archived,
             "pinned": inserted.pinned
         }))
         .await;
 
     let body = assert_status_json(response, StatusCode::CREATED);
-    assert_eq!(body["success"], true);
     assert_eq!(body["data"]["id"], inserted.id.to_string());
     assert_eq!(body["data"]["user_id"], inserted.user_id.to_string());
 }

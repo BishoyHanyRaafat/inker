@@ -1,16 +1,16 @@
 use anyhow::{Context, Result, anyhow};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use url::Url;
+use yt_transcript_rs::YouTubeTranscriptApi;
 
-/// A single caption segment with timing
+/// A single caption segment with timing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Caption {
-    /// Start time in seconds
+    /// Start time in seconds.
     pub start: f64,
-    /// End time in seconds
+    /// End time in seconds.
     pub end: f64,
-    /// The caption text (cleaned of markup)
+    /// Caption text.
     pub text: String,
 }
 
@@ -41,45 +41,60 @@ impl Transcript {
         self.captions.segments.is_empty()
     }
 }
-/// Collection of captions from a video
+
+/// Collection of captions from a video.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Captions {
     pub segments: Vec<Caption>,
 }
 
 impl Captions {
-    /// Get all text concatenated with spaces
+    /// Get all text concatenated with spaces.
     pub fn full_text(&self) -> String {
         self.segments
             .iter()
-            .map(|c| c.text.as_str())
+            .map(|caption| caption.text.as_str())
             .collect::<Vec<_>>()
             .join(" ")
     }
 
+    /// Get captions overlapping the requested time range.
     pub fn query(&self, q_start: f64, q_end: f64) -> Captions {
-        let left = self.segments.partition_point(|c| c.end <= q_start);
+        if q_end <= q_start {
+            return Captions {
+                segments: Vec::new(),
+            };
+        }
+
+        let left = self
+            .segments
+            .partition_point(|caption| caption.end <= q_start);
+
         let mut right = left;
+
         while right < self.segments.len() && self.segments[right].start < q_end {
             right += 1;
         }
+
         Captions {
             segments: self.segments[left..right].to_vec(),
         }
     }
 
-    /// Convert to WebVTT format string
+    /// Convert to WebVTT format.
     pub fn to_vtt(&self) -> String {
         let mut vtt = String::from("WEBVTT\n\n");
-        for (i, caption) in self.segments.iter().enumerate() {
+
+        for (index, caption) in self.segments.iter().enumerate() {
             vtt.push_str(&format!(
                 "{}\n{} --> {}\n{}\n\n",
-                i + 1,
+                index + 1,
                 format_vtt_time(caption.start),
                 format_vtt_time(caption.end),
                 caption.text
             ));
         }
+
         vtt
     }
 }
@@ -88,292 +103,233 @@ fn format_vtt_time(seconds: f64) -> String {
     let hours = (seconds / 3600.0) as u32;
     let minutes = ((seconds % 3600.0) / 60.0) as u32;
     let secs = seconds % 60.0;
+
     format!("{:02}:{:02}:{:06.3}", hours, minutes, secs)
 }
 
-/// Facade for fetching YouTube captions (public videos) entirely in-memory
-#[derive(Clone)]
-pub struct YouTubeCaptions {
-    client: Client,
+/// Extract a YouTube video ID from a URL or accept a raw video ID.
+fn extract_video_id(input: &str) -> Result<String> {
+    let input = input.trim();
+
+    // Allow callers to pass the video ID directly.
+    if !input.contains("://") && !input.contains('/') && !input.contains('?') {
+        return validate_video_id(input);
+    }
+
+    let url = Url::parse(input).context("Invalid YouTube URL")?;
+
+    let host = url.host_str().ok_or_else(|| anyhow!("Missing URL host"))?;
+
+    let video_id = match host {
+        "youtu.be" => url
+            .path_segments()
+            .and_then(|mut segments| segments.next().map(|e| e.to_string())),
+
+        "youtube.com" | "www.youtube.com" | "m.youtube.com" | "music.youtube.com" => {
+            // Standard watch URL.
+            if let Some((_, value)) = url.query_pairs().find(|(key, _)| key == "v") {
+                Some(value.into_owned())
+            } else {
+                // Shorts, embed, and live URLs.
+                let segments: Vec<_> = url.path_segments().into_iter().flatten().collect();
+
+                segments
+                    .windows(2)
+                    .find(|window| matches!(window[0], "shorts" | "embed" | "live"))
+                    .map(|window| window[1].to_string())
+            }
+        }
+
+        _ => return Err(anyhow!("Unsupported YouTube URL host: {host}")),
+    };
+
+    validate_video_id(
+        video_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("Could not extract YouTube video ID"))?,
+    )
 }
 
-impl Default for YouTubeCaptions {
-    fn default() -> Self {
-        Self::new()
+fn validate_video_id(video_id: &str) -> Result<String> {
+    let valid = video_id.len() == 11
+        && video_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-');
+
+    if !valid {
+        return Err(anyhow!("Invalid YouTube video ID"));
     }
+
+    Ok(video_id.to_string())
+}
+
+/// Facade for fetching YouTube captions and metadata.
+#[derive(Clone)]
+pub struct YouTubeCaptions {
+    client: YouTubeTranscriptApi,
 }
 
 impl YouTubeCaptions {
-    pub fn new() -> Self {
-        Self {
-            client: Client::new(),
-        }
+    /// Initialize the YouTube transcript client.
+    pub fn new() -> Result<Self> {
+        let client = YouTubeTranscriptApi::new(None, None, None)
+            .context("Failed to initialize YouTube transcript API")?;
+        Ok(Self { client })
     }
 
-    /// Fetch captions from a public video
+    /// Fetch captions and video metadata.
+    ///
+    /// Supports both YouTube URLs and raw video IDs.
     pub async fn fetch_captions(&self, video_url: &str) -> Result<Transcript> {
-        // Step 1: Use yt-dlp to get video info as JSON
-        let output = Command::new("yt-dlp")
-            .args(["-j", "--skip-download", video_url])
-            .output()
-            .context("Failed to run yt-dlp")?;
+        let video_id = extract_video_id(video_url)?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("yt-dlp failed: {}", stderr));
-        }
+        // Fetch transcript and metadata concurrently.
+        let (fetched, details) = tokio::try_join!(
+            self.client.fetch_transcript(&video_id, &["en"], false,),
+            self.client.fetch_video_details(&video_id),
+        )
+        .context("Failed to fetch YouTube transcript or metadata")?;
 
-        let json_str =
-            String::from_utf8(output.stdout).context("Invalid UTF-8 in yt-dlp output")?;
-        let video_info: VideoInfo =
-            serde_json::from_str(&json_str).context("Failed to parse yt-dlp JSON")?;
-
-        // Step 2: Find the json3 format subtitle URL (prefer English)
-        let subtitle_url = video_info
-            .find_subtitle_url("json3", "en")
-            .context("No subtitles found for this video")?;
-
-        // Step 3: Fetch the json3 content directly
-        let json3_content = self
-            .client
-            .get(&subtitle_url)
-            .send()
-            .await
-            .context("Failed to fetch subtitle URL")?
-            .text()
-            .await
-            .context("Failed to read subtitle content")?;
-
-        // Step 4: Parse json3 into our Caption struct
-        let captions = Json3Response::parse(&json3_content)?;
-        let transcript = Transcript {
-            video_id: video_url.to_string(),
-            captions,
-            title: video_info.title.to_string(),
-            description: video_info.description.to_string(),
-        };
-
-        Ok(transcript)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct VideoInfo {
-    pub title: String,
-    pub description: String,
-    #[serde(default)]
-    subtitles: SubtitleCollection,
-    #[serde(default)]
-    automatic_captions: SubtitleCollection,
-}
-
-impl VideoInfo {
-    /// Find a subtitle URL by format extension, preferring a specific language
-    fn find_subtitle_url(&self, ext: &str, preferred_lang: &str) -> Option<String> {
-        // Try automatic captions first (more common for most videos)
-        if let Some(url) = self.automatic_captions.find_url(ext, Some(preferred_lang)) {
-            return Some(url);
-        }
-        if let Some(url) = self.automatic_captions.find_url(ext, None) {
-            return Some(url);
-        }
-
-        // Fallback to manual subtitles
-        if let Some(url) = self.subtitles.find_url(ext, Some(preferred_lang)) {
-            return Some(url);
-        }
-        self.subtitles.find_url(ext, None)
-    }
-}
-
-/// Collection of subtitles across multiple languages
-#[derive(Debug, Default)]
-struct SubtitleCollection {
-    languages: Vec<LanguageSubtitles>,
-}
-
-impl SubtitleCollection {
-    /// Find a subtitle URL by format, optionally filtering by language
-    fn find_url(&self, ext: &str, lang: Option<&str>) -> Option<String> {
-        for lang_subs in &self.languages {
-            if let Some(target_lang) = lang
-                && lang_subs.language != target_lang
-            {
-                continue;
-            }
-            if let Some(format) = lang_subs.formats.iter().find(|f| f.ext == ext) {
-                return Some(format.url.clone());
-            }
-        }
-        None
-    }
-}
-
-/// Subtitles for a specific language
-#[derive(Debug)]
-struct LanguageSubtitles {
-    language: String,
-    formats: Vec<SubtitleFormat>,
-}
-
-/// A single subtitle format (e.g., vtt, json3, srv1)
-#[derive(Debug, Deserialize)]
-struct SubtitleFormat {
-    ext: String,
-    url: String,
-}
-
-// Custom deserializer for SubtitleCollection since YouTube returns { "en": [...], "es": [...] }
-impl<'de> Deserialize<'de> for SubtitleCollection {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::{MapAccess, Visitor};
-
-        struct SubtitleCollectionVisitor;
-
-        impl<'de> Visitor<'de> for SubtitleCollectionVisitor {
-            type Value = SubtitleCollection;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a map of language codes to subtitle formats")
-            }
-
-            fn visit_map<M>(self, mut map: M) -> std::result::Result<SubtitleCollection, M::Error>
-            where
-                M: MapAccess<'de>,
-            {
-                let mut languages = Vec::new();
-
-                while let Some((lang, formats)) = map.next_entry::<String, Vec<SubtitleFormat>>()? {
-                    languages.push(LanguageSubtitles {
-                        language: lang,
-                        formats,
-                    });
-                }
-
-                Ok(SubtitleCollection { languages })
-            }
-        }
-
-        deserializer.deserialize_map(SubtitleCollectionVisitor)
-    }
-}
-
-/// YouTube's json3 caption response
-#[derive(Debug, Deserialize)]
-struct Json3Response {
-    #[serde(default)]
-    events: Vec<Json3Event>,
-}
-
-impl Json3Response {
-    /// Parse json3 content into Captions
-    fn parse(json_content: &str) -> Result<Captions> {
-        let response: Json3Response =
-            serde_json::from_str(json_content).context("Failed to parse json3")?;
-
-        let segments = response
-            .events
+        // Convert library snippets into application captions.
+        let segments = fetched
+            .snippets
             .into_iter()
-            .filter_map(|event| event.into_caption())
-            .collect();
+            .filter(|snippet| !snippet.text.trim().is_empty())
+            .map(|snippet| Caption {
+                start: snippet.start,
+                end: snippet.start + snippet.duration,
+                text: snippet.text.trim().to_string(),
+            })
+            .collect::<Vec<_>>();
 
-        Ok(Captions { segments })
-    }
-}
-
-/// A single event in json3 (represents one caption cue)
-#[derive(Debug, Deserialize)]
-struct Json3Event {
-    #[serde(rename = "tStartMs", default)]
-    start_ms: u64,
-    #[serde(rename = "dDurationMs", default)]
-    duration_ms: u64,
-    #[serde(default)]
-    segs: Vec<Json3Segment>,
-}
-
-impl Json3Event {
-    /// Convert to Caption if this event has valid text
-    fn into_caption(self) -> Option<Caption> {
-        let text: String = self
-            .segs
-            .into_iter()
-            .filter_map(|s| s.utf8)
-            .collect::<Vec<_>>()
-            .join("")
-            .trim()
-            .to_string();
-
-        // Skip empty or whitespace-only segments
-        if text.is_empty() || text == "\n" {
-            return None;
+        if segments.is_empty() {
+            return Err(anyhow!("YouTube transcript contains no caption segments"));
         }
 
-        Some(Caption {
-            start: self.start_ms as f64 / 1000.0,
-            end: (self.start_ms + self.duration_ms) as f64 / 1000.0,
-            text,
+        Ok(Transcript {
+            video_id: fetched.video_id,
+            captions: Captions { segments },
+            title: details.title,
+            description: details.short_description,
         })
     }
-}
-
-/// A text segment within a json3 event
-#[derive(Debug, Deserialize)]
-struct Json3Segment {
-    utf8: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_fetch_captions() {
-        let facade = YouTubeCaptions::new();
-        let captions = facade
-            .fetch_captions("https://www.youtube.com/watch?v=E3_95BZYIVs")
-            .await
-            .unwrap();
+    #[test]
+    fn test_extract_video_id() {
+        let cases = [
+            ("https://www.youtube.com/watch?v=E3_95BZYIVs", "E3_95BZYIVs"),
+            ("https://youtu.be/E3_95BZYIVs", "E3_95BZYIVs"),
+            ("https://www.youtube.com/shorts/E3_95BZYIVs", "E3_95BZYIVs"),
+            ("https://www.youtube.com/embed/E3_95BZYIVs", "E3_95BZYIVs"),
+            ("E3_95BZYIVs", "E3_95BZYIVs"),
+        ];
 
-        assert!(
-            !captions.captions.segments.is_empty(),
-            "Captions should not be empty"
-        );
-
-        println!(
-            "Found {} caption segments",
-            captions.captions.segments.len()
-        );
-        for cap in captions.captions.segments.iter().take(5) {
-            println!("[{:.2}–{:.2}] {}", cap.start, cap.end, cap.text);
+        for (input, expected) in cases {
+            assert_eq!(extract_video_id(input).unwrap(), expected);
         }
-
-        // Test VTT generation
-        let vtt = captions.captions.to_vtt();
-        assert!(vtt.starts_with("WEBVTT"));
-        println!(
-            "\n--- Generated VTT (first 500 chars) ---\n{}",
-            &vtt[..500.min(vtt.len())]
-        );
     }
 
     #[test]
-    fn test_subtitle_collection_deserialize() {
-        let json = r#"{
-            "en": [{"ext": "json3", "url": "http://example.com/en.json3"}],
-            "es": [{"ext": "vtt", "url": "http://example.com/es.vtt"}]
-        }"#;
+    fn test_invalid_video_id() {
+        assert!(extract_video_id("invalid").is_err());
+    }
 
-        let collection: SubtitleCollection = serde_json::from_str(json).unwrap();
-        assert_eq!(collection.languages.len(), 2);
+    #[test]
+    fn test_caption_query() {
+        let captions = Captions {
+            segments: vec![
+                Caption {
+                    start: 0.0,
+                    end: 2.0,
+                    text: "First".into(),
+                },
+                Caption {
+                    start: 2.0,
+                    end: 4.0,
+                    text: "Second".into(),
+                },
+                Caption {
+                    start: 4.0,
+                    end: 6.0,
+                    text: "Third".into(),
+                },
+            ],
+        };
 
-        let en_url = collection.find_url("json3", Some("en"));
-        assert_eq!(en_url, Some("http://example.com/en.json3".to_string()));
+        let result = captions.query(2.0, 5.0);
 
-        let es_url = collection.find_url("vtt", Some("es"));
-        assert_eq!(es_url, Some("http://example.com/es.vtt".to_string()));
+        assert_eq!(result.segments.len(), 2);
+        assert_eq!(result.segments[0].text, "Second");
+        assert_eq!(result.segments[1].text, "Third");
+    }
+
+    #[test]
+    fn test_full_text() {
+        let captions = Captions {
+            segments: vec![
+                Caption {
+                    start: 0.0,
+                    end: 2.0,
+                    text: "Hello".into(),
+                },
+                Caption {
+                    start: 2.0,
+                    end: 4.0,
+                    text: "world".into(),
+                },
+            ],
+        };
+
+        assert_eq!(captions.full_text(), "Hello world");
+    }
+
+    #[test]
+    fn test_vtt_generation() {
+        let captions = Captions {
+            segments: vec![Caption {
+                start: 1.0,
+                end: 3.0,
+                text: "Hello world".into(),
+            }],
+        };
+
+        let vtt = captions.to_vtt();
+
+        assert!(vtt.starts_with("WEBVTT"));
+        assert!(vtt.contains("00:00:01.000 --> 00:00:03.000"));
+        assert!(vtt.contains("Hello world"));
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires network access and YouTube availability"]
+    async fn test_fetch_captions() {
+        let facade = YouTubeCaptions::new().unwrap();
+
+        let transcript = facade
+            .fetch_captions("https://www.youtube.com/watch?v=K5KVEU3aaeQ")
+            .await
+            .unwrap();
+
+        assert!(!transcript.is_empty());
+        assert!(!transcript.title.is_empty());
+        assert!(!transcript.description.is_empty());
+
+        println!("Title: {}", transcript.title);
+        println!("Description: {}", transcript.description);
+        println!("Video ID: {}", transcript.video_id);
+
+        println!(
+            "Found {} caption segments",
+            transcript.captions.segments.len()
+        );
+
+        for caption in transcript.captions.segments.iter().take(5) {
+            println!("[{:.2}–{:.2}] {}", caption.start, caption.end, caption.text);
+        }
     }
 }

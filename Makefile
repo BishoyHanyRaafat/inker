@@ -36,6 +36,7 @@ generate:
 
 	python3 apply_derives.py crates/entities/src/note.rs Model "ToSchema"
 	python3 apply_derives.py crates/entities/src/note.rs Model --field user '#[serde(skip)]'
+	$(MAKE) format
 
 .PHONY: migrate ## Run database migrations (usage: make migrate ARGS="up")
 migrate:

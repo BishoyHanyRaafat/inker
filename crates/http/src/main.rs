@@ -127,7 +127,7 @@ async fn main() {
         ua_parser,
         Providers::default(),
         reqwest::Client::new(),
-        yt_processing::YouTubeCaptions::default(),
+        yt_processing::YouTubeCaptions::new().unwrap(),
     );
     let default_route = Router::new();
 

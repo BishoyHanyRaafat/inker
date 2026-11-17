@@ -77,7 +77,7 @@ impl TestAppStateBuilder {
             self.ua_parser.unwrap_or_else(create_test_ua_parser),
             self.providers.unwrap_or_else(create_test_providers),
             self.http_client.unwrap_or_default(),
-            yt_processing::YouTubeCaptions::default(),
+            yt_processing::YouTubeCaptions::new().unwrap(),
         )
     }
 }
