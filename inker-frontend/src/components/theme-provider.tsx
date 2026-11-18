@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react"
+import githubLight from "highlight.js/styles/github.css?url"
+import githubDark from "highlight.js/styles/github-dark.css?url"
 
 type Theme = "dark" | "light" | "system"
 
@@ -31,21 +33,41 @@ export function ThemeProvider({
   )
 
   useEffect(() => {
-    const root = window.document.documentElement
+    const root = document.documentElement
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
 
-    root.classList.remove("light", "dark")
+    const applyTheme = () => {
+      const resolvedTheme =
+        theme === "system"
+          ? systemTheme.matches ? "dark" : "light"
+          : theme
 
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light"
+      root.classList.remove("light", "dark")
+      root.classList.add(resolvedTheme)
 
-      root.classList.add(systemTheme)
-      return
+      let link = document.getElementById(
+        "highlight-theme"
+      ) as HTMLLinkElement | null
+
+      if (!link) {
+        link = document.createElement("link")
+        link.id = "highlight-theme"
+        link.rel = "stylesheet"
+        document.head.appendChild(link)
+      }
+
+      link.href = resolvedTheme === "dark" ? githubDark : githubLight
     }
 
-    root.classList.add(theme)
+    applyTheme()
+
+    if (theme === "system") {
+      systemTheme.addEventListener("change", applyTheme)
+
+      return () => {
+        systemTheme.removeEventListener("change", applyTheme)
+      }
+    }
   }, [theme])
 
   const value = {

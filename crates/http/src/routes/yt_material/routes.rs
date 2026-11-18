@@ -245,7 +245,7 @@ pub async fn yt_summary_handler(
                 .into_iter()
                 .map(|section| section.content)
                 .collect::<Vec<_>>()
-                .join("\n"),
+                .join("<br>"),
             coverage_notes: Some(coverage_notes),
             tags: Some(tags),
             description: Some(description),

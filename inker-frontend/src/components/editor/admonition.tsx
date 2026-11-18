@@ -20,7 +20,6 @@ export const Admonition = Node.create({
 
   group: "block",
   content: "block+",
-
   defining: true,
 
   addAttributes() {
@@ -67,24 +66,21 @@ export const Admonition = Node.create({
     name: "admonition",
     level: "block",
 
-    start: (src) => src.indexOf(":::"),
+    start: (source) => source.indexOf(":::"),
 
-    tokenize: (src, _tokens, lexer) => {
+    tokenize: (source, _tokens, lexer) => {
       const match =
         /^:::(note|tip|info|warning|danger)[ \t]*\r?\n([\s\S]*?)\r?\n:::[ \t]*(?:\r?\n|$)/.exec(
-          src,
+          source,
         );
 
       if (!match) return undefined;
 
-      const type = match[1];
-      const content = match[2];
-
       return {
         type: "admonition",
         raw: match[0],
-        admonitionType: type,
-        tokens: lexer.blockTokens(content),
+        admonitionType: match[1],
+        tokens: lexer.blockTokens(match[2]),
       };
     },
   },
